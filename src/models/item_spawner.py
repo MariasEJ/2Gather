@@ -21,7 +21,7 @@ class ItemSpawner:
         self.intervalo = INTERVALO_SPAWN_INICIAL
         self.velocidade_queda = VELOCIDADE_QUEDA_INICIAL
 
-    def update(self, dt, pontuacao):
+    def update(self, dt, pontuacao, num_jogadores=2):
         """Retorna os itens novos deste intervalo de tempo."""
         nivel = max(0, int(pontuacao) // PONTOS_POR_NIVEL_DIFICULDADE)
         self.intervalo = max(
@@ -41,7 +41,8 @@ class ItemSpawner:
             self.timer -= self.intervalo
             margem = TAMANHO_ITEM / 2
             x = random.uniform(margem, LARGURA - margem)
-            tipo = random.choice(("circulo", "quadrado"))
+            tipos = ("circulo",) if num_jogadores == 1 else ("circulo", "quadrado")
+            tipo = random.choice(tipos)
             cor = random.choice(CORES_ITENS)
             itens_novos.append(FallingItem(x, tipo, cor, self.velocidade_queda))
         return itens_novos

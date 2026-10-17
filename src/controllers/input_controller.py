@@ -22,7 +22,7 @@ class InputController:
                 if model.estado == model.MENU:
                     acao = self.telas.acao_botao_menu(evento.pos)
                     if acao == "iniciar":
-                        model.iniciar()
+                        model.iniciar_calibracao()
                     elif acao == "regras":
                         model.mostrar_regras()
                 elif model.estado == model.REGRAS and self.telas.clicou_voltar(evento.pos):
@@ -30,7 +30,7 @@ class InputController:
             return True
 
         if evento.key == pygame.K_SPACE and model.estado == model.MENU:
-            model.iniciar()
+            model.iniciar_calibracao()
         elif evento.key == pygame.K_r and model.estado == model.MENU:
             model.mostrar_regras()
         elif evento.key == pygame.K_ESCAPE and model.estado == model.REGRAS:
@@ -39,5 +39,5 @@ class InputController:
             model.alternar_pausa()
         elif evento.key == pygame.K_r and model.estado == model.FIM:
             model.reset()
-            model.iniciar()
+            model.iniciar_calibracao()
         return True

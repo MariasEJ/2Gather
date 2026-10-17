@@ -11,6 +11,17 @@ class Player:
         self.cor = cor
         self.tipo_alvo = tipo_alvo
         self.direcao = 0
+        self.alvo_x = None
+
+    def deslocamento(self, dt, velocidade):
+        """Calcula o deslocamento respeitando o limite de velocidade."""
+        if self.alvo_x is None:
+            return self.direcao * velocidade * dt
+
+        diferenca = self.alvo_x - self.x
+        passo = max(-velocidade * dt, min(diferenca, velocidade * dt))
+        self.direcao = (passo > 0) - (passo < 0)
+        return passo
 
     def retangulo(self):
         """Retorna (x, y, largura, altura) da área de captura."""

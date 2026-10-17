@@ -3,6 +3,7 @@ import pygame
 from src.config import ALTURA, COR_FUNDO, COR_TEXTO_SUAVE, LARGURA
 from src.views.hud_view import HudView
 from src.views.screens_view import ScreensView
+from src.vision.tipos import StatusJogadores
 
 
 class GameView:
@@ -11,17 +12,21 @@ class GameView:
         self.hud = HudView(tela)
         self.telas = ScreensView(tela)
 
-    def render(self, model):
+    def render(self, model, debug=None):
         self.tela.fill(COR_FUNDO)
         self._desenhar_cenario()
 
         if model.estado == model.MENU:
             self.telas.desenhar_menu()
         elif model.estado == model.REGRAS:
-            self.telas.desenhar_regras()
+            self.telas.desenhar_regras(model.num_jogadores)
+        elif model.estado == model.CALIBRANDO:
+            progresso = debug[1].progresso if debug else 0.0
+            status = debug[1].status if debug else StatusJogadores.REPOSICIONANDO
+            self.telas.desenhar_calibracao(model.num_jogadores, progresso, status)
         else:
-            self.desenhar_jogador(model.p1)
-            self.desenhar_jogador(model.p2)
+            for jogador in model.jogadores:
+                self.desenhar_jogador(jogador)
             for item in model.itens:
                 self.desenhar_item(item)
             self.hud.desenhar(model)
@@ -31,9 +36,11 @@ class GameView:
             self.tela.blit(dica, dica.get_rect(midbottom=(LARGURA // 2, ALTURA - 12)))
             if model.estado == model.PAUSADO:
                 self.telas.desenhar_pausa()
+            elif model.estado == model.PAUSADO_POSICAO:
+                status = debug[1].status if debug else StatusJogadores.FALTA_JOGADOR
+                self.telas.desenhar_reposicionar(status)
             elif model.estado == model.FIM:
                 self.telas.desenhar_fim(model.pontuacao, model.itens_perdidos)
-
         pygame.display.flip()
 
     def _desenhar_cenario(self):
