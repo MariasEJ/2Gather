@@ -10,7 +10,7 @@ class Fundo:
 class FundoSimples(Fundo):
     ID = 'simples'
     NOME = 'simples'
-    IMAGEM = 'imagens/fundo1-simples.png' 
+    IMAGEM = 'imagens/fundo1-simples.png'  # Troque pela arte do pátio aqui.
 
 
 class FundoDecorado(Fundo):
@@ -21,6 +21,6 @@ class FundoDecorado(Fundo):
 class FundoPraia(Fundo):
     ID = 'praia'
     NOME = 'praia'
-    IMAGEM = 'imagens/fundo-praia1.gif' 
+    IMAGEM = 'imagens/fundo-praia1.gif'
 
 FUNDOS = (FundoSimples, FundoDecorado, FundoPraia)

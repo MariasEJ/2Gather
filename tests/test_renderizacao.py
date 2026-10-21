@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -6,6 +7,7 @@ from unittest.mock import patch
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 import pygame
+from PIL import Image
 
 from src.config import CHAO_Y, LARGURA, ALTURA, ALTURA_JOGADOR, LARGURA_JOGADOR
 from src.models.falling_item import FallingItem
@@ -59,8 +61,8 @@ class RenderizacaoTests(unittest.TestCase):
         pygame.draw.rect(original, (255, 0, 0, 255), pygame.Rect(20, 5, 40, 30))
         with patch('src.views.recursos_visuais.Path.is_file', return_value=True), \
                 patch('src.views.recursos_visuais.pygame.image.load', return_value=original.copy()) as carregar:
-            a = recursos.sprite('imagens/teste.png', (28, 28))
-            b = recursos.sprite('imagens/teste.png', (28, 28))
+            a = recursos.sprite('imagens/teste.png', (32, 32))
+            b = recursos.sprite('imagens/teste.png', (32, 32))
             self.assertIs(a, b)
             self.assertEqual(a.get_size(), (28, 21))
             self.assertEqual(carregar.call_count, 1)
@@ -72,7 +74,7 @@ class RenderizacaoTests(unittest.TestCase):
     def test_missing_image_reports_which_file_to_add(self):
         recursos = RecursosVisuais(Path(__file__).resolve().parents[1])
         with self.assertRaisesRegex(FileNotFoundError, 'missing.png'):
-            recursos.sprite('imagens/missing.png', (28, 28))
+            recursos.sprite('imagens/missing.png', (32, 32))
 
     def test_every_lixeira_item_and_background_image_loads(self):
         recursos = RecursosVisuais()
@@ -81,10 +83,37 @@ class RenderizacaoTests(unittest.TestCase):
                 self.assertGreater(recursos.sprite(classe.IMAGEM, (96, 96)).get_width(), 0)
             for item in classe.ITENS:
                 with self.subTest(item=item.id):
-                    self.assertGreater(recursos.sprite(item.imagem, (28, 28)).get_width(), 0)
+                    self.assertGreater(recursos.sprite(item.imagem, (32, 32)).get_width(), 0)
         for fundo in FUNDOS:
             with self.subTest(fundo=fundo.ID):
                 self.assertEqual(recursos.fundo(fundo.IMAGEM, (LARGURA, CHAO_Y)).get_size(), (LARGURA, CHAO_Y))
+
+    def test_gif_background_advances_frames_and_caches_scaled_frames(self):
+        with tempfile.TemporaryDirectory() as diretorio:
+            caminho = Path(diretorio) / 'animado.gif'
+            recursos = RecursosVisuais(diretorio)
+            quadros = [
+                Image.new('RGBA', (2, 2), (255, 0, 0, 255)),
+                Image.new('RGBA', (2, 2), (0, 0, 255, 255)),
+            ]
+            quadros[0].save(
+                caminho,
+                save_all=True,
+                append_images=quadros[1:],
+                duration=[100, 100],
+                loop=0,
+                disposal=2,
+            )
+
+            with patch('src.views.recursos_visuais.pygame.time.get_ticks', side_effect=(0, 100, 200)):
+                primeiro = recursos.fundo('animado.gif', (4, 4))
+                segundo = recursos.fundo('animado.gif', (4, 4))
+                terceiro = recursos.fundo('animado.gif', (4, 4))
+
+            self.assertEqual(primeiro.get_at((0, 0))[:3], (255, 0, 0))
+            self.assertEqual(segundo.get_at((0, 0))[:3], (0, 0, 255))
+            self.assertEqual(terceiro.get_at((0, 0))[:3], (255, 0, 0))
+            self.assertIs(primeiro, terceiro)
 
     def test_gameplay_draws_only_players_and_falling_items(self):
         tela = pygame.Surface((LARGURA, ALTURA))
