@@ -1,37 +1,24 @@
 import pygame
 
-from src.config import (
-    COR_FUNDO,
-    COR_TEXTO,
-    COR_VIDA,
-    COR_VIDA_VAZIA,
-    LARGURA,
-    MAX_ITENS_PERDIDOS,
-)
+from src.config import COR_TEXTO, LARGURA, MAX_ITENS_PERDIDOS
 
 
 class HudView:
-    def __init__(self, tela):
+    def __init__(self, tela, recursos):
         self.tela = tela
+        self.recursos = recursos
         self.fonte_pontos = pygame.font.Font(None, 46)
 
     def desenhar(self, model):
+        faixa_placar = pygame.Rect(LARGURA // 2 - 46, 10, 92, 52)
+        pygame.draw.rect(self.tela, (10, 14, 22), faixa_placar, border_radius=9)
+        pygame.draw.rect(self.tela, (205, 215, 225), faixa_placar, width=1, border_radius=9)
         pontos = self.fonte_pontos.render(str(model.pontuacao), True, COR_TEXTO)
-        self.tela.blit(pontos, pontos.get_rect(midtop=(LARGURA // 2, 20)))
+        self.tela.blit(pontos, pontos.get_rect(center=faixa_placar.center))
 
-        raio = 13
-        espacamento = 36
-        primeiro_centro_x = LARGURA - 24 - raio - 2 * espacamento
-        centro_y = 34
-        for indice in range(MAX_ITENS_PERDIDOS):
-            centro_x = primeiro_centro_x + indice * espacamento
-            vida_ativa = indice >= model.itens_perdidos
-            pygame.draw.circle(
-                self.tela,
-                COR_VIDA_VAZIA,
-                (centro_x, centro_y),
-                raio,
-            )
-            if vida_ativa:
-                pygame.draw.circle(self.tela, COR_VIDA, (centro_x, centro_y), raio - 2)
-            pygame.draw.circle(self.tela, COR_FUNDO, (centro_x, centro_y), raio, width=2)
+        faixa_vidas = pygame.Rect(LARGURA - 170, 10, 156, 48)
+        pygame.draw.rect(self.tela, (10, 14, 22), faixa_vidas, border_radius=9)
+        pygame.draw.rect(self.tela, (205, 215, 225), faixa_vidas, width=1, border_radius=9)
+        vidas = MAX_ITENS_PERDIDOS - model.itens_perdidos
+        texto_vidas = pygame.font.Font(None, 27).render(f'Vidas: {vidas}', True, COR_TEXTO)
+        self.tela.blit(texto_vidas, texto_vidas.get_rect(center=faixa_vidas.center))

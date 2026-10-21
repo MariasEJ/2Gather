@@ -1,100 +1,99 @@
+import math
+import random
+
 from src.config import (
-    COR_P1,
-    COR_P2,
     LARGURA,
     LARGURA_JOGADOR,
     MAX_ITENS_PERDIDOS,
+    NUM_PARTICOES,
     PONTOS_ACERTO,
     PONTOS_ERRO,
     PONTUACAO_LIMITE_INFERIOR,
     PONTUACAO_MINIMA,
     VELOCIDADE_JOGADOR,
     VELOCIDADE_JOGADOR_CAMERA,
+    TEMPO_CONTAGEM,
 )
 from src.models.item_spawner import ItemSpawner
-from src.models.player import Player
+from src.models.fundos import FUNDOS
+from src.models.lixeiras import LIXEIRAS, Lixeira
+from src.models.particoes import centro_particao
 
 
 def clamp(valor, minimo, maximo):
     return max(minimo, min(valor, maximo))
 
 
-def colide(retangulo_a, retangulo_b):
-    ax, ay, aw, ah = retangulo_a
-    bx, by, bw, bh = retangulo_b
-    return ax < bx + bw and ax + aw > bx and ay < by + bh and ay + ah > by
-
-
 class GameModel:
     MENU = "MENU"
     REGRAS = "REGRAS"
     CALIBRANDO = "CALIBRANDO"
+    CONTAGEM = "CONTAGEM"
     JOGANDO = "JOGANDO"
-    PAUSADO = "PAUSADO"
-    PAUSADO_POSICAO = "PAUSADO_POSICAO"
     FIM = "FIM"
 
-    def __init__(self, num_jogadores=2):
-        if num_jogadores not in (1, 2):
-            raise ValueError("num_jogadores deve ser 1 ou 2")
-        self.num_jogadores = num_jogadores
+    def __init__(self, *, rng=None, rng_fundo=None):
+        self.rng = rng if rng is not None else random.Random()
+        self.rng_fundo = rng_fundo if rng_fundo is not None else random.Random()
+        self.fundo = None
         self.reset()
 
     def reset(self):
-        self.p1 = Player("P1", LARGURA * 0.25, COR_P1, "circulo")
-        self.p2 = (
-            Player("P2", LARGURA * 0.75, COR_P2, "quadrado")
-            if self.num_jogadores == 2
-            else None
-        )
+        self.p1 = Lixeira('P1', centro_particao(2))
+        self.p2 = Lixeira('P2', centro_particao(3))
         self.itens = []
-        self.spawner = ItemSpawner()
+        self.spawner = None
+        self.fundo = None
+        self.tempo_contagem = 0.0
         self.pontuacao = 0
         self.itens_perdidos = 0
         self.estado = self.MENU
+        self._estado_antes_regras = self.MENU
 
     def iniciar(self):
-        if self.estado in (self.MENU, self.REGRAS, self.CALIBRANDO):
-            self.estado = self.JOGANDO
+        if self.estado not in (self.MENU, self.CALIBRANDO, self.FIM):
+            return
+        categorias = self.rng.sample(LIXEIRAS, 2)
+        self.reset()
+        self.p1, self.p2 = categorias[0]('P1', centro_particao(2)), categorias[1]('P2', centro_particao(3))
+        self.fundo = self.rng_fundo.choice(FUNDOS)
+        self.spawner = ItemSpawner(categorias, self.rng)
+        self.tempo_contagem = TEMPO_CONTAGEM
+        self.estado = self.CONTAGEM
+
+    @property
+    def numero_contagem(self):
+        return max(1, math.ceil(self.tempo_contagem - 1e-9))
 
     def iniciar_calibracao(self):
-        if self.estado in (self.MENU, self.REGRAS):
+        if self.estado == self.MENU:
             self.estado = self.CALIBRANDO
 
-    def pausar_por_posicao(self):
-        if self.estado == self.JOGANDO:
-            self.estado = self.PAUSADO_POSICAO
-
-    def retomar_por_posicao(self):
-        if self.estado == self.PAUSADO_POSICAO:
-            self.estado = self.JOGANDO
-
     def mostrar_regras(self):
-        if self.estado == self.MENU:
+        if self.estado in (self.MENU, self.CALIBRANDO, self.FIM):
+            self._estado_antes_regras = self.estado
             self.estado = self.REGRAS
 
     def voltar_menu(self):
         if self.estado == self.REGRAS:
-            self.estado = self.MENU
-
-    def pausar(self):
-        if self.estado == self.JOGANDO:
-            self.estado = self.PAUSADO
-
-    def alternar_pausa(self):
-        if self.estado == self.JOGANDO:
-            self.estado = self.PAUSADO
-        elif self.estado == self.PAUSADO:
-            self.estado = self.JOGANDO
+            self.estado = self._estado_antes_regras
 
     def update(self, dt):
+        dt = max(0.0, float(dt))
+        if self.estado == self.CONTAGEM:
+            self.tempo_contagem = max(0.0, self.tempo_contagem - dt)
+            if self.tempo_contagem <= 1e-9:
+                self.tempo_contagem = 0.0
+                self.estado = self.JOGANDO
+                self.itens.append(self.spawner.gerar())
+                self.spawner.timer = 0.0
+            return
         if self.estado != self.JOGANDO:
             return
 
-        dt = max(0.0, float(dt))
         self.mover_jogadores(dt)
         self.itens.extend(
-            self.spawner.update(dt, self.pontuacao, self.num_jogadores)
+            self.spawner.update(dt, self.pontuacao)
         )
         for item in self.itens:
             item.update(dt)
@@ -110,9 +109,7 @@ class GameModel:
 
     def mover_jogadores(self, dt):
         meia = LARGURA_JOGADOR / 2
-        camera_ativa = self.p1.alvo_x is not None or (
-            self.p2 is not None and self.p2.alvo_x is not None
-        )
+        camera_ativa = self.p1.alvo_x is not None or self.p2.alvo_x is not None
         velocidade = VELOCIDADE_JOGADOR_CAMERA if camera_ativa else VELOCIDADE_JOGADOR
         p1_atual = self.p1.x
         novo_p1 = clamp(
@@ -120,16 +117,17 @@ class GameModel:
             meia,
             LARGURA - meia,
         )
-        if self.p2 is None:
-            self.p1.x = novo_p1
-            return
-
         p2_atual = self.p2.x
         novo_p2 = clamp(
             p2_atual + self.p2.deslocamento(dt, velocidade),
             meia,
             LARGURA - meia,
         )
+
+        # Apenas P1 entra na primeira faixa; apenas P2 entra na última.
+        largura_faixa = LARGURA / NUM_PARTICOES
+        novo_p1 = min(novo_p1, LARGURA - largura_faixa - 1e-6)
+        novo_p2 = max(novo_p2, largura_faixa)
 
         if novo_p2 - novo_p1 < LARGURA_JOGADOR:
             deslocamento_p1 = novo_p1 - p1_atual
@@ -153,9 +151,11 @@ class GameModel:
                 break
             if not item.ativo:
                 continue
-            for jogador in self.jogadores:
-                if colide(item.retangulo(), jogador.retangulo()):
-                    if item.tipo == jogador.tipo_alvo:
+            # Mesma faixa E contato com o desenho; entre contatos, prioriza o dono.
+            candidatos = sorted(self.jogadores, key=lambda j: j.ID != item.categoria_id)
+            for jogador in candidatos:
+                if item.particao == jogador.particao and item.toca_jogador(jogador):
+                    if item.categoria_id == jogador.ID:
                         self.pontuacao += PONTOS_ACERTO
                     else:
                         self.pontuacao += PONTOS_ERRO
@@ -173,7 +173,7 @@ class GameModel:
 
     @property
     def jogadores(self):
-        return (self.p1, self.p2) if self.p2 is not None else (self.p1,)
+        return (self.p1, self.p2)
 
     def _contar_itens_perdidos(self):
         restantes = []

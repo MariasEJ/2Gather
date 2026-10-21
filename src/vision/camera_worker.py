@@ -22,12 +22,11 @@ class CameraIndisponivelError(RuntimeError):
 
 
 class CameraWorker(threading.Thread):
-    def __init__(self, num_jogadores=2, cv2_module=None, detector_factory=None):
+    def __init__(self, cv2_module=None, detector_factory=None):
         super().__init__(name="catch-duo-camera", daemon=True)
         if cv2_module is None:
             import cv2 as cv2_module
         self.cv2 = cv2_module
-        self.num_jogadores = num_jogadores
         self._lock = threading.Lock()
         self._parar = threading.Event()
         self._ultimo = None
@@ -48,7 +47,7 @@ class CameraWorker(threading.Thread):
             if self._detector_factory is None:
                 from src.vision.pose_detector import PoseDetector
                 self._detector_factory = PoseDetector
-            detector = self._detector_factory(num_jogadores=self.num_jogadores)
+            detector = self._detector_factory()
             ultimo_timestamp = -1
             leituras_falhas = 0
             inicio_log = time.monotonic()
@@ -81,7 +80,7 @@ class CameraWorker(threading.Thread):
                 agora = time.monotonic()
                 if agora - inicio_log >= INTERVALO_LOG_CAMERA:
                     logger.info("Camera ativa: %.1f FPS de captura/inferencia; jogadores=%d/%d",
-                                frames_log / (agora - inicio_log), len(pessoas), self.num_jogadores)
+                                frames_log / (agora - inicio_log), len(pessoas), 2)
                     inicio_log, frames_log = agora, 0
         except Exception as exc:
             self.erro = f"Falha ao iniciar ou processar a câmera: {exc}"

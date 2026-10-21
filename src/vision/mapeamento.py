@@ -1,22 +1,28 @@
 """Mapeia posições normalizadas da câmera para coordenadas do jogo."""
 
 from src.config import (
-    LARGURA,
-    LARGURA_JOGADOR,
+    MARGEM_CENTRAL,
     SUAVIZACAO_ALPHA,
     ZONA_CAMERA_MAX,
     ZONA_CAMERA_MIN,
 )
+from src.models.particoes import centro_particao
 
 
 def clamp(valor, minimo, maximo):
     return max(minimo, min(valor, maximo))
 
 
-def cx_para_jogo(cx, largura_jogo=LARGURA, meia_largura=LARGURA_JOGADOR / 2):
-    faixa = ZONA_CAMERA_MAX - ZONA_CAMERA_MIN
-    t = clamp((cx - ZONA_CAMERA_MIN) / faixa, 0.0, 1.0)
-    return meia_largura + t * (largura_jogo - 2 * meia_largura)
+def cx_dupla_para_jogo(cx, jogador):
+    """Cada metade física controla as cinco faixas acessíveis ao jogador."""
+    if jogador == 1:
+        minimo, maximo = ZONA_CAMERA_MIN, 0.5 - MARGEM_CENTRAL
+        primeira, ultima = 0, 4
+    else:
+        minimo, maximo = 0.5 + MARGEM_CENTRAL, ZONA_CAMERA_MAX
+        primeira, ultima = 1, 5
+    t = clamp((cx - minimo) / (maximo - minimo), 0.0, 1.0)
+    return centro_particao(primeira) + t * (centro_particao(ultima) - centro_particao(primeira))
 
 
 class SuavizadorEMA:

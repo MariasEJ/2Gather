@@ -8,23 +8,27 @@ from src.config import FPS, LARGURA, ALTURA, TITULO
 from src.controllers.input_controller import InputController
 from src.models.game_model import GameModel
 from src.views.game_view import GameView
-from src.controllers.input.keyboard_input import KeyboardInput
+from src.controllers.input import criar_fonte_entrada
 from src.vision.tipos import StatusJogadores
+from src import config
 
 
 logger = logging.getLogger(__name__)
 
 
 class GameController:
-    def __init__(self, tela=None, input_source=None, num_jogadores=2):
+    def __init__(self, tela=None, input_source=None):
         self.tela = tela or pygame.display.set_mode((LARGURA, ALTURA))
         pygame.display.set_caption(TITULO)
-        self.model = GameModel(num_jogadores)
+        self.model = GameModel()
         self.view = GameView(self.tela)
         self.input = InputController(self.view.telas)
-        self.input_source = input_source or KeyboardInput(num_jogadores)
+        self.input_source = input_source if input_source is not None else criar_fonte_entrada()
         self.clock = pygame.time.Clock()
         self.rodando = True
+        self._agachamento_armado = False
+        self._x_armado = True
+        self._estado_entrada = self.model.estado
 
     def run(self):
         logger.info("Estado inicial: %s; entrada=%s", self.model.estado, type(self.input_source).__name__)
@@ -47,10 +51,7 @@ class GameController:
 
                 if not self.rodando:
                     break
-                self._trocar_para_teclado_se_camera_falhar()
                 entrada = self.input_source.ler()
-                if self._trocar_para_teclado_se_camera_falhar():
-                    entrada = self.input_source.ler()
                 self._aplicar_entrada(entrada)
                 self.model.update(dt)
                 if self.model.estado != estado_frame:
@@ -58,42 +59,44 @@ class GameController:
                                 estado_frame, self.model.estado, entrada.status.value, entrada.prontos)
                 if placar_anterior != (self.model.pontuacao, self.model.itens_perdidos):
                     logger.info("Placar: pontos=%d itens_perdidos=%d", self.model.pontuacao, self.model.itens_perdidos)
-                self.view.render(self.model, entrada.debug)
+                self.view.render(self.model, entrada)
         finally:
             self.input_source.fechar()
 
     def _aplicar_entrada(self, entrada):
         model = self.model
-        if model.estado == model.CALIBRANDO:
-            if entrada.status == StatusJogadores.OK and entrada.prontos:
+        if model.estado == model.FIM and self._estado_entrada != model.FIM:
+            self._agachamento_armado = False
+        self._estado_entrada = model.estado
+        for indice, jogador in enumerate(model.jogadores, 1):
+            jogador.direcao = 0
+            jogador.alvo_x = None
+            valido = getattr(entrada, f"valido_p{indice}")
+            if valido is None:
+                valido = entrada.status == StatusJogadores.OK
+            if model.estado == model.JOGANDO and valido and entrada.status != StatusJogadores.CRUZARAM:
+                jogador.alvo_x = getattr(entrada, f"alvo_p{indice}")
+                jogador.direcao = getattr(entrada, f"dir_p{indice}") or 0
+
+        if not entrada.prontos or entrada.status != StatusJogadores.OK:
+            self._agachamento_armado = self._x_armado = False
+            return
+        if not config.USAR_CAMERA:
+            return
+        if not entrada.amostra_nova:
+            return
+        if not entrada.agachado_p1 and not entrada.agachado_p2:
+            self._agachamento_armado = True
+        if not entrada.bracos_x:
+            self._x_armado = True
+        if entrada.x_confirmado and self._x_armado:
+            self._x_armado = False
+            if model.estado == model.REGRAS:
+                model.voltar_menu()
+            else:
+                model.mostrar_regras()
+            return
+        if entrada.agachamento_confirmado and self._agachamento_armado:
+            self._agachamento_armado = False
+            if model.estado in (model.MENU, model.CALIBRANDO, model.FIM):
                 model.iniciar()
-
-        if model.estado == model.PAUSADO_POSICAO:
-            if entrada.status == StatusJogadores.OK and entrada.prontos:
-                model.retomar_por_posicao()
-
-        if model.estado != model.JOGANDO:
-            return
-        if entrada.status != StatusJogadores.OK or not entrada.prontos:
-            model.pausar_por_posicao()
-            return
-
-        if entrada.alvo_p1 is not None:
-            model.p1.alvo_x = entrada.alvo_p1
-            if model.p2 is not None and entrada.alvo_p2 is not None:
-                model.p2.alvo_x = entrada.alvo_p2
-        else:
-            model.p1.alvo_x = None
-            model.p1.direcao = entrada.dir_p1 or 0
-            if model.p2 is not None:
-                model.p2.alvo_x = None
-                model.p2.direcao = entrada.dir_p2 or 0
-
-    def _trocar_para_teclado_se_camera_falhar(self):
-        erro = getattr(self.input_source, "erro", None)
-        if not erro:
-            return False
-        logger.warning("%s Usando teclado como alternativa (P1: A/D; P2: setas).", erro)
-        self.input_source.fechar()
-        self.input_source = KeyboardInput(self.model.num_jogadores)
-        return True

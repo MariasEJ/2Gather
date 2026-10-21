@@ -1,31 +1,27 @@
-import pygame
+﻿import pygame
 
-from src.config import (
-    COR_PAINEL,
-    COR_TEXTO,
-    COR_TEXTO_SUAVE,
-    LARGURA,
-    ALTURA,
-)
-from src.vision.tipos import StatusJogadores
+from src.config import CHAO_Y, COR_PAINEL, COR_TEXTO, COR_TEXTO_SUAVE, LARGURA
+from src.models.lixeiras import LIXEIRAS
 
 
 class ScreensView:
-    def __init__(self, tela):
+    def __init__(self, tela, recursos):
         self.tela = tela
-        self.fonte_titulo = pygame.font.Font(None, 64)
-        self.fonte = pygame.font.Font(None, 30)
-        self.fonte_pequena = pygame.font.Font(None, 24)
-        self.botao_iniciar = pygame.Rect(LARGURA // 2 - 145, 310, 290, 54)
-        self.botao_regras = pygame.Rect(LARGURA // 2 - 145, 382, 290, 54)
-        self.botao_voltar = pygame.Rect(LARGURA // 2 - 145, 455, 290, 50)
+        self.recursos = recursos
+        self.fonte_titulo = pygame.font.Font(None, 54)
+        self.fonte = pygame.font.Font(None, 28)
+        self.fonte_pequena = pygame.font.Font(None, 21)
+        self.botao_voltar = pygame.Rect(LARGURA // 2 - 140, CHAO_Y - 70, 280, 46)
 
-    def _texto_centralizado(self, texto, y, fonte, cor=COR_TEXTO):
+    def _texto_centralizado(self, texto, y, fonte, cor=COR_TEXTO, x=None, sombra=False):
         superficie = fonte.render(texto, True, cor)
-        self.tela.blit(superficie, superficie.get_rect(center=(LARGURA // 2, y)))
+        destino = superficie.get_rect(center=(LARGURA // 2 if x is None else x, y))
+        if sombra:
+            self.tela.blit(fonte.render(texto, True, (0, 0, 0)), destino.move(2, 2))
+        self.tela.blit(superficie, destino)
 
-    def _painel(self, altura=300):
-        painel = pygame.Rect(100, (ALTURA - altura) // 2, LARGURA - 200, altura)
+    def _painel(self):
+        painel = pygame.Rect(40, 20, LARGURA - 80, CHAO_Y - 40)
         pygame.draw.rect(self.tela, COR_PAINEL, painel, border_radius=18)
         pygame.draw.rect(self.tela, (54, 68, 93), painel, width=2, border_radius=18)
 
@@ -35,92 +31,59 @@ class ScreensView:
         superficie = self.fonte.render(texto, True, COR_TEXTO)
         self.tela.blit(superficie, superficie.get_rect(center=retangulo.center))
 
-    def acao_botao_menu(self, posicao):
-        if self.botao_iniciar.collidepoint(posicao):
-            return "iniciar"
-        if self.botao_regras.collidepoint(posicao):
-            return "regras"
-        return None
-
     def clicou_voltar(self, posicao):
         return self.botao_voltar.collidepoint(posicao)
 
-    def desenhar_menu(self):
-        self._painel(390)
-        self._texto_centralizado("CATCH DUO", 185, self.fonte_titulo)
-        self._texto_centralizado(
-            "Um jogo cooperativo de captura", 240, self.fonte_pequena, COR_TEXTO_SUAVE
+    def desenhar_menu(self, usando_camera=True):
+        self.recursos.desenhar(self.tela, 'imagens/logo1.png', pygame.Rect(250, 65, 300, 150))
+        inicio, regras = (
+            ('agache para começar', 'cruze os braços para regras') if usando_camera
+            else ('aperte espaço para iniciar', 'aperte x para regras')
         )
-        self._botao(self.botao_iniciar, "Começar jogo")
-        self._botao(self.botao_regras, "Ver regras")
-        self._texto_centralizado("ou pressione ESPAÇO para começar", 465, self.fonte_pequena, COR_TEXTO_SUAVE)
+        self._texto_centralizado(inicio, 285, self.fonte)
+        self._texto_centralizado(regras, 330, self.fonte_pequena, COR_TEXTO_SUAVE)
 
-    def desenhar_regras(self, num_jogadores=2):
-        self._painel(470)
-        self._texto_centralizado("REGRAS", 105, self.fonte_titulo)
-        regras = ["P1 usa A / D e deve pegar bolinhas."]
-        if num_jogadores == 2:
-            regras.append("P2 usa as setas e deve pegar quadrados.")
-        else:
-            regras.append("No modo solo, surgem apenas bolinhas.")
-        regras.extend(
-            (
-                "Item do formato certo vale +1 ponto.",
-                "Item do formato errado vale -1 ponto.",
-                "Cada item perdido apaga uma bolinha de vida.",
-                "A partida termina ao perder as 3 vidas.",
-                "Também termina ao atingir -5 pontos.",
-                "A frequência e a velocidade aumentam com a pontuação.",
-            )
+    def desenhar_regras(self, usando_camera=True):
+        self._painel()
+        self._texto_centralizado('CATEGORIAS E CONTROLES', 59, self.fonte_titulo)
+        self._desenhar_categorias(168)
+        linhas = (
+            'A captura exige contato e a mesma faixa. Um acerto vale +1; um erro, -1.',
+            'Três resíduos perdidos ou -5 pontos encerram a rodada da dupla.',
+            'As lixeiras movem somente para os lados e não se atravessam.',
+            'Espaço inicia ou reinicia a rodada.',
+            'P1: A/D; P2: setas esquerda/direita. X ou ESC retorna.',
+        ) if not usando_camera else (
+            'A captura exige contato e a mesma faixa. Um acerto vale +1; um erro, -1.',
+            'Três resíduos perdidos ou -5 pontos encerram a rodada da dupla.',
+            'Movam o corpo para os lados; as lixeiras não se atravessam.',
+            'Agachem juntos para iniciar ou reiniciar. Durante o jogo, não faz nada.',
+            'Cruzem os braços para abrir e fechar as regras. ESC ou Voltar também retorna.',
         )
-        if num_jogadores == 2:
-            regras.append("Cooperem: os jogadores não atravessam um ao outro.")
-        for indice, regra in enumerate(regras):
-            self._texto_centralizado(regra, 155 + indice * 32, self.fonte_pequena)
-        self._botao(self.botao_voltar, "Voltar ao menu")
+        for indice, linha in enumerate(linhas):
+            self._texto_centralizado(linha, CHAO_Y - 210 + indice * 26, self.fonte_pequena)
+        self._botao(self.botao_voltar, 'Voltar')
 
-    def desenhar_calibracao(self, num_jogadores, progresso, status=None):
-        self._painel(300)
-        self._texto_centralizado("PREPARANDO CÂMERA", 195, self.fonte_titulo)
-        if num_jogadores == 1:
-            instrucao = "Fique diante da câmera com os quadris visíveis."
-        else:
-            instrucao = "Fiquem um de cada lado da linha central."
-        self._texto_centralizado(instrucao, 255, self.fonte_pequena)
-        if status == StatusJogadores.FALTA_JOGADOR or (
-            num_jogadores == 1 and progresso <= 0.0
-        ):
-            dica = "Aguardando detectar os quadris dos jogadores."
-        elif status == StatusJogadores.REPOSICIONANDO and num_jogadores == 2:
-            dica = "Ajustem a posição: um jogador em cada metade da câmera."
-        else:
-            dica = "Calibrando por um segundo; não é preciso ficar imóvel."
-        self._texto_centralizado(dica, 295, self.fonte_pequena, COR_TEXTO_SUAVE)
-        barra = pygame.Rect(LARGURA // 2 - 150, 340, 300, 22)
-        pygame.draw.rect(self.tela, (65, 73, 91), barra, border_radius=10)
-        preenchimento = barra.copy()
-        preenchimento.width = round(barra.width * max(0.0, min(1.0, progresso)))
-        if preenchimento.width:
-            pygame.draw.rect(self.tela, (86, 220, 145), preenchimento, border_radius=10)
+    def _desenhar_categorias(self, y):
+        for indice, classe in enumerate(LIXEIRAS):
+            x = 112 + indice * 144
+            cartao = pygame.Rect(x - 66, y - 36, 132, 112)
+            pygame.draw.rect(self.tela, (32, 41, 58), cartao, border_radius=9)
+            imagem = pygame.Rect(x - 22, y - 28, 44, 34)
+            self.recursos.desenhar(self.tela, classe.IMAGEM, imagem)
+            nome = pygame.font.Font(None, 20).render(classe.NOME, True, COR_TEXTO)
+            self.tela.blit(nome, nome.get_rect(center=(x, y + 13)))
+            fonte = pygame.font.Font(None, 15)
+            for linha, item in enumerate(classe.ITENS[:2]):
+                texto = fonte.render(item.nome, True, COR_TEXTO_SUAVE)
+                self.tela.blit(texto, texto.get_rect(center=(x, y + 35 + linha * 17)))
 
-    def desenhar_reposicionar(self, status):
-        self._painel(250)
-        if status == StatusJogadores.CRUZARAM:
-            mensagem = "Vocês trocaram de lado. Voltem às posições iniciais."
-        else:
-            mensagem = "Não consigo ver todos os jogadores. Voltem à câmera."
-        self._texto_centralizado("JOGO PAUSADO", 230, self.fonte_titulo)
-        self._texto_centralizado(mensagem, 300, self.fonte_pequena)
-        self._texto_centralizado("Permaneçam nas posições iniciais por um segundo.", 345, self.fonte_pequena, COR_TEXTO_SUAVE)
+    def desenhar_calibracao(self, progresso=0.0, status=None, usando_camera=True, aviso=''):
+        self.desenhar_menu(usando_camera)
 
-    def desenhar_pausa(self):
-        self._painel(190)
-        self._texto_centralizado("PAUSADO", 260, self.fonte_titulo)
-        self._texto_centralizado("P ou ESC para continuar", 320, self.fonte)
+    def desenhar_contagem(self, numero):
+        self._texto_centralizado(str(numero), CHAO_Y // 2, pygame.font.Font(None, 144), sombra=True)
 
-    def desenhar_fim(self, pontuacao, itens_perdidos):
-        self._painel(250)
-        self._texto_centralizado("FIM DE JOGO", 220, self.fonte_titulo)
-        self._texto_centralizado(f"Pontuação: {pontuacao}", 280, self.fonte)
-        self._texto_centralizado(f"Itens perdidos: {itens_perdidos}", 320, self.fonte_pequena, COR_TEXTO_SUAVE)
-        self._texto_centralizado("Pressione R para jogar novamente", 370, self.fonte)
+    def desenhar_fim(self, pontuacao):
+        self._texto_centralizado('GAME OVER', CHAO_Y // 2 - 28, self.fonte_titulo, sombra=True)
+        self._texto_centralizado(f'Pontuação: {pontuacao}', CHAO_Y // 2 + 28, self.fonte, sombra=True)

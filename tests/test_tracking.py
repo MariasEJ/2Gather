@@ -1,60 +1,107 @@
-import unittest
+﻿import unittest
+from dataclasses import replace
 
-from src.config import TEMPO_ESTABILIDADE, TOLERANCIA_FRAMES
-from src.vision.mapeamento import SuavizadorEMA, cx_para_jogo
+from src.vision.mapeamento import SuavizadorEMA, cx_dupla_para_jogo
 from src.vision.player_tracker import PlayerTracker
 from src.vision.tipos import PessoaDetectada, StatusJogadores
 
 
-def pessoa(x, cor=None):
-    return PessoaDetectada(x, 0.5, 0.2, cor, corpo_completo=False)
+def dupla():
+    return [PessoaDetectada(0.25, 0.5, 0.2, (0, 255, 255), corpo_completo=False),
+            PessoaDetectada(0.75, 0.6, 0.2, (90, 255, 255), corpo_completo=False)]
+
+
+def calibrar(tracker, pessoas=None, inicio=0):
+    pessoas = dupla() if pessoas is None else pessoas
+    for i in range(31):
+        estado = tracker.atualizar(pessoas, inicio + i * 0.04)
+    return estado
 
 
 class TrackingTests(unittest.TestCase):
-    def test_solo_with_hips_and_without_feet_calibrates_while_moving(self):
-        tracker = PlayerTracker(1)
-        self.assertFalse(tracker.atualizar([pessoa(0.3)], 0).prontos)
-        estado = tracker.atualizar([pessoa(0.4)], TEMPO_ESTABILIDADE)
-        self.assertTrue(estado.prontos)
-        self.assertEqual(estado.p1_cx, 0.4)
+    def test_hips_alone_calibrate_separate_references(self):
+        tracker = PlayerTracker()
+        self.assertTrue(calibrar(tracker).prontos)
+        self.assertEqual(tracker.referencias, [0.5, 0.6])
+        pessoas = dupla()
+        pessoas[0] = replace(pessoas[0], cy=0.56)
+        estado = tracker.atualizar(pessoas, 2)
+        self.assertTrue(estado.agachado_p1)
+        self.assertFalse(estado.agachado_p2)
 
-    def test_short_flicker_does_not_restart_calibration(self):
-        tracker = PlayerTracker(1)
-        tracker.atualizar([pessoa(0.3)], 0)
-        self.assertFalse(tracker.atualizar([], 0.5).prontos)
-        self.assertTrue(tracker.atualizar([pessoa(0.3)], TEMPO_ESTABILIDADE).prontos)
+    def test_calibration_needs_new_samples_and_stable_hips(self):
+        tracker = PlayerTracker()
+        for _ in range(50):
+            self.assertFalse(tracker.atualizar(dupla(), 0).prontos)
+        pessoas = dupla()
+        for i in range(31):
+            pessoas[0] = replace(pessoas[0], cy=0.5 + i * 0.003)
+            self.assertFalse(tracker.atualizar(pessoas, 1 + i * 0.04).prontos)
 
-    def test_long_absence_requires_new_calibration(self):
-        tracker = PlayerTracker(1)
-        tracker.atualizar([pessoa(0.3)], 0)
-        tracker.atualizar([pessoa(0.3)], TEMPO_ESTABILIDADE)
-        for i in range(TOLERANCIA_FRAMES):
-            self.assertTrue(tracker.atualizar([], 2 + i * 0.1).prontos)
-        self.assertEqual(tracker.atualizar([], 4).status, StatusJogadores.FALTA_JOGADOR)
-        self.assertFalse(tracker.atualizar([pessoa(0.3)], 5).prontos)
-        self.assertTrue(tracker.atualizar([pessoa(0.3)], 5 + TEMPO_ESTABILIDADE).prontos)
+    def test_missing_pose_clears_old_targets_immediately(self):
+        tracker = PlayerTracker()
+        calibrar(tracker)
+        estado = tracker.atualizar([], 2)
+        self.assertFalse(estado.prontos)
+        self.assertIsNone(estado.p1_cx)
+        self.assertIsNone(estado.p2_cx)
+        self.assertFalse(estado.agachado_p1 or estado.agachado_p2)
+
+    def test_reliable_remaining_player_can_move(self):
+        tracker = PlayerTracker()
+        calibrar(tracker)
+        p1 = replace(dupla()[0], cx=0.3)
+        estado = tracker.atualizar([p1], 2)
+        self.assertEqual(estado.p1_cx, 0.3)
+        self.assertIsNone(estado.p2_cx)
+        self.assertFalse(estado.prontos)
+
+    def test_ambiguous_identity_neutralizes_both(self):
+        tracker = PlayerTracker()
+        calibrar(tracker)
+        desconhecido = PessoaDetectada(0.5, 0.55, 0.2)
+        estado = tracker.atualizar([desconhecido], 2)
+        self.assertIsNone(estado.p1_cx)
+        self.assertIsNone(estado.p2_cx)
+
+    def test_recovery_never_recalibrates_while_crouched(self):
+        tracker = PlayerTracker()
+        calibrar(tracker)
+        tracker.atualizar([], 2)
+        agachados = [replace(p, cy=p.cy + 0.1) for p in dupla()]
+        self.assertFalse(calibrar(tracker, agachados, 3).prontos)
+        self.assertEqual(tracker.referencias, [0.5, 0.6])
+        self.assertTrue(calibrar(tracker, inicio=5).prontos)
+
+    def test_crossing_keeps_identities_until_players_return(self):
+        tracker = PlayerTracker()
+        calibrar(tracker)
+        cruzados = [replace(dupla()[0], cx=0.75), replace(dupla()[1], cx=0.25)]
+        for i in range(40):
+            estado = tracker.atualizar(cruzados, 2 + i * 0.04)
+            self.assertEqual(estado.status, StatusJogadores.CRUZARAM)
+            self.assertIsNone(estado.p1_cx)
+            self.assertIsNone(estado.p2_cx)
+        self.assertTrue(calibrar(tracker, inicio=5).prontos)
+        self.assertEqual(tracker.referencias, [0.5, 0.6])
 
     def test_pair_needs_separate_sides(self):
-        tracker = PlayerTracker(2)
-        for t in (0, 2):
-            self.assertFalse(tracker.atualizar([pessoa(0.2), pessoa(0.4)], t).prontos)
-        tracker.atualizar([pessoa(0.2), pessoa(0.8)], 3)
-        self.assertTrue(tracker.atualizar([pessoa(0.8), pessoa(0.2)], 4).prontos)
+        tracker = PlayerTracker()
+        pessoas = dupla()
+        pessoas[1] = replace(pessoas[1], cx=0.4)
+        self.assertFalse(calibrar(tracker, pessoas).prontos)
+        self.assertTrue(calibrar(tracker, inicio=3).prontos)
 
-    def test_crossing_pauses_and_requires_repositioning(self):
-        tracker = PlayerTracker(2)
-        esquerda, direita = pessoa(0.3, (0, 255, 255)), pessoa(0.7, (90, 255, 255))
-        tracker.atualizar([esquerda, direita], 0)
-        tracker.atualizar([esquerda, direita], 1)
-        cruzadas = [pessoa(0.7, esquerda.cor), pessoa(0.3, direita.cor)]
-        self.assertEqual(tracker.atualizar(cruzadas, 2).status, StatusJogadores.CRUZARAM)
-        self.assertFalse(tracker.atualizar([esquerda, direita], 3).prontos)
-        self.assertTrue(tracker.atualizar([esquerda, direita], 4).prontos)
+    def test_low_confidence_cannot_calibrate_or_trigger_squat(self):
+        tracker = PlayerTracker()
+        pessoas = [replace(p, confianca_quadris=0.1) for p in dupla()]
+        self.assertFalse(calibrar(tracker, pessoas).prontos)
+        calibrar(tracker, inicio=3)
+        estado = tracker.atualizar(pessoas, 5)
+        self.assertFalse(estado.prontos or estado.agachado_p1 or estado.agachado_p2)
 
     def test_mapping_and_smoothing(self):
-        self.assertEqual(cx_para_jogo(0), 30)
-        self.assertEqual(cx_para_jogo(0.5), 400)
-        self.assertEqual(cx_para_jogo(1), 770)
+        self.assertLess(cx_dupla_para_jogo(0, 1), cx_dupla_para_jogo(1, 1))
         ema = SuavizadorEMA(0.5)
         self.assertEqual(ema.aplicar(100), 100)
         self.assertEqual(ema.aplicar(200), 150)

@@ -1,10 +1,9 @@
 import os
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
-
+os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 import pygame
 
 from src.controllers.game_controller import GameController
@@ -14,6 +13,7 @@ from src.controllers.input_controller import InputController
 from src.models.falling_item import FallingItem
 from src.models.game_model import GameModel
 from src.vision.tipos import StatusJogadores
+from src.config import CHAO_Y, ALTURA_JOGADOR
 
 
 class GameFlowTests(unittest.TestCase):
@@ -26,109 +26,157 @@ class GameFlowTests(unittest.TestCase):
     def tearDownClass(cls):
         pygame.quit()
 
-    def controller(self, jogadores=1):
-        return GameController(num_jogadores=jogadores)
+    def setUp(self):
+        # Gestos são simulados sem abrir a câmera; testes de teclado sobrescrevem o modo.
+        modo = patch('src.config.USAR_CAMERA', True)
+        modo.start()
+        self.addCleanup(modo.stop)
+        self.controller = GameController(input_source=KeyboardInput())
+        self.model = self.controller.model
+        self.controller._aplicar_entrada(EntradaJogadores())
 
-    def test_space_keyboard_starts_and_moves(self):
-        controller = self.controller()
-        InputController().tratar_evento(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE), controller.model)
-        self.assertEqual(controller.model.estado, GameModel.CALIBRANDO)
-        controller._aplicar_entrada(EntradaJogadores(dir_p1=1))
-        anterior = controller.model.p1.x
-        controller.model.update(0.1)
-        self.assertEqual(controller.model.estado, GameModel.JOGANDO)
-        self.assertGreater(controller.model.p1.x, anterior)
+    def agachar(self, **kwargs):
+        return EntradaJogadores(agachado_p1=True, agachado_p2=True,
+                                agachamento_confirmado=True, **kwargs)
 
-    def test_camera_start_pause_resume_and_manual_pause(self):
-        controller = self.controller(2)
-        model = controller.model
-        model.iniciar_calibracao()
-        controller._aplicar_entrada(EntradaJogadores(prontos=False, status=StatusJogadores.REPOSICIONANDO))
-        self.assertEqual(model.estado, model.CALIBRANDO)
-        controller._aplicar_entrada(EntradaJogadores(alvo_p1=100, alvo_p2=700))
-        self.assertEqual(model.estado, model.JOGANDO)
-        self.assertEqual(model.p1.alvo_x, 100)
-        item = FallingItem(400, "circulo", (0, 0, 0), 150)
-        model.itens.append(item)
-        controller._aplicar_entrada(EntradaJogadores(status=StatusJogadores.FALTA_JOGADOR, prontos=False))
-        model.update(1)
-        self.assertEqual(model.estado, model.PAUSADO_POSICAO)
-        self.assertEqual(item.y, -item.tamanho)
-        controller._aplicar_entrada(EntradaJogadores(alvo_p1=150, alvo_p2=650))
-        self.assertEqual(model.estado, model.JOGANDO)
-        self.assertEqual(model.p1.alvo_x, 150)
-        model.pausar()
-        controller._aplicar_entrada(EntradaJogadores(alvo_p1=200, alvo_p2=600))
-        self.assertEqual(model.estado, model.PAUSADO)
+    def test_pair_confirmation_enters_countdown_once(self):
+        for entrada in (EntradaJogadores(agachado_p1=True), EntradaJogadores(agachado_p2=True),
+                        EntradaJogadores(agachado_p1=True, agachado_p2=True)):
+            self.controller._aplicar_entrada(entrada)
+            self.assertEqual(self.model.estado, self.model.MENU)
+        self.controller._aplicar_entrada(self.agachar())
+        self.assertEqual(self.model.estado, self.model.CONTAGEM)
+        categorias = tuple(type(j) for j in self.model.jogadores)
+        self.model.update(1)
+        self.controller._aplicar_entrada(self.agachar())
+        self.assertEqual(self.model.tempo_contagem, 2)
+        self.assertEqual(tuple(type(j) for j in self.model.jogadores), categorias)
 
-    def test_failure_falls_back_to_keyboard_from_calibration(self):
-        controller = self.controller()
-        camera = Mock(erro="camera desconectada")
-        controller.input_source = camera
-        controller.model.iniciar_calibracao()
-        with self.assertLogs("src.controllers.game_controller", level="WARNING"):
-            self.assertTrue(controller._trocar_para_teclado_se_camera_falhar())
-        camera.fechar.assert_called_once()
-        self.assertIsInstance(controller.input_source, KeyboardInput)
-        controller._aplicar_entrada(controller.input_source.ler())
-        self.assertEqual(controller.model.estado, GameModel.JOGANDO)
+    def test_no_controls_or_instructions_during_countdown(self):
+        self.controller._aplicar_entrada(self.agachar())
+        for tecla in (pygame.K_x, pygame.K_p, pygame.K_ESCAPE, pygame.K_w, pygame.K_UP):
+            InputController().tratar_evento(pygame.event.Event(pygame.KEYDOWN, key=tecla), self.model)
+        self.controller._aplicar_entrada(EntradaJogadores(dir_p1=-1, dir_p2=1, bracos_x=True, x_confirmado=True))
+        self.model.mostrar_regras()
+        self.model.update(1)
+        self.assertEqual(self.model.estado, self.model.CONTAGEM)
+        self.assertEqual((self.model.p1.particao, self.model.p2.particao), (2, 3))
+        self.assertFalse(self.model.itens)
 
-    def test_real_loop_start_recalibrates_and_closes(self):
-        controller = self.controller()
-        source = Mock(erro=None)
-        source.ler.return_value = EntradaJogadores(dir_p1=1)
-        controller.input_source = source
-        controller.view.render = Mock(side_effect=lambda *args: setattr(controller, "rodando", False))
+    def test_invalid_tracking_does_not_stop_countdown_or_game(self):
+        self.controller._aplicar_entrada(self.agachar())
+        invalida = EntradaJogadores(status=StatusJogadores.CRUZARAM, prontos=False)
+        self.controller._aplicar_entrada(invalida)
+        self.model.update(3)
+        self.assertEqual(self.model.estado, self.model.JOGANDO)
+        self.assertEqual(len(self.model.itens), 1)
+        self.controller._aplicar_entrada(EntradaJogadores(alvo_p1=100, alvo_p2=700))
+        self.controller._aplicar_entrada(invalida)
+        self.assertIsNone(self.model.p1.alvo_x)
+        self.assertIsNone(self.model.p2.alvo_x)
+        self.assertEqual((self.model.p1.direcao, self.model.p2.direcao), (0, 0))
+        self.model.itens = [FallingItem(20, type(self.model.p1).ITENS[0], type(self.model.p1).ID, 1000) for _ in range(3)]
+        self.model.update(1)
+        self.assertEqual(self.model.estado, self.model.FIM)
+        self.assertEqual(self.model.itens_perdidos, 3)
+
+    def test_one_reliable_player_continues_moving(self):
+        self.model.iniciar()
+        self.model.update(3)
+        self.controller._aplicar_entrada(EntradaJogadores(
+            status=StatusJogadores.FALTA_JOGADOR, prontos=False,
+            alvo_p1=100, valido_p1=True, valido_p2=False))
+        anterior = self.model.p2.x
+        self.model.update(0.1)
+        self.assertLess(self.model.p1.x, 333)
+        self.assertEqual(self.model.p2.x, anterior)
+        self.assertEqual(self.model.estado, self.model.JOGANDO)
+
+    def test_squat_x_pause_and_escape_do_nothing_while_playing(self):
+        self.model.iniciar()
+        self.model.update(3)
+        self.controller._aplicar_entrada(self.agachar(bracos_x=True, x_confirmado=True))
+        for tecla in (pygame.K_x, pygame.K_p, pygame.K_ESCAPE):
+            InputController().tratar_evento(pygame.event.Event(pygame.KEYDOWN, key=tecla), self.model)
+        self.model.mostrar_regras()
+        self.model.update(0.1)
+        self.assertEqual(self.model.estado, self.model.JOGANDO)
+        self.assertEqual((self.model.p1.y, self.model.p1.altura), (CHAO_Y - ALTURA_JOGADOR, ALTURA_JOGADOR))
+        self.assertGreater(self.model.itens[0].y, -28)
+
+    def test_restart_requires_release_in_results_and_new_confirmed_gesture(self):
+        self.model.iniciar()
+        self.model.update(3)
+        self.model.estado = self.model.FIM
+        self.model.pontuacao = 30
+        self.controller._aplicar_entrada(self.agachar())
+        self.assertEqual(self.model.estado, self.model.FIM)
+        self.controller._aplicar_entrada(EntradaJogadores(prontos=False))
+        self.controller._aplicar_entrada(self.agachar())
+        self.assertEqual(self.model.estado, self.model.FIM)
+        self.controller._aplicar_entrada(EntradaJogadores())
+        self.controller._aplicar_entrada(self.agachar(amostra_nova=False))
+        self.assertEqual(self.model.estado, self.model.FIM)
+        self.controller._aplicar_entrada(self.agachar())
+        self.assertEqual(self.model.estado, self.model.CONTAGEM)
+        self.assertEqual((self.model.pontuacao, self.model.itens_perdidos), (0, 0))
+
+    def test_rules_return_to_menu_preparation_or_results_and_x_needs_release(self):
+        for origem in (self.model.MENU, self.model.CALIBRANDO, self.model.FIM):
+            self.model.estado = origem
+            self.controller._aplicar_entrada(EntradaJogadores())
+            x = EntradaJogadores(bracos_x=True, x_confirmado=True)
+            self.controller._aplicar_entrada(x)
+            self.controller._aplicar_entrada(x)
+            self.assertEqual(self.model.estado, self.model.REGRAS)
+            self.controller._aplicar_entrada(EntradaJogadores())
+            self.controller._aplicar_entrada(x)
+            self.assertEqual(self.model.estado, origem)
+            self.model.mostrar_regras()
+            InputController().tratar_evento(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE), self.model)
+            self.assertEqual(self.model.estado, origem)
+
+    @patch('src.config.USAR_CAMERA', False)
+    def test_keyboard_space_starts_countdown_and_closes_source(self):
+        source = Mock()
+        source.ler.return_value = EntradaJogadores()
+        self.controller.input_source = source
+        self.controller.view.render = Mock(side_effect=lambda *args: setattr(self.controller, 'rodando', False))
         pygame.event.clear()
         pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE))
-        controller.run()
-        self.assertEqual(controller.model.estado, GameModel.JOGANDO)
-        source.recalibrar.assert_called_once()
+        self.controller.run()
+        self.assertEqual(self.model.estado, self.model.CONTAGEM)
+        source.recalibrar.assert_not_called()
         source.fechar.assert_called_once()
 
-    def test_restart_goes_through_calibration(self):
-        controller = self.controller()
-        controller.model.estado = GameModel.FIM
-        controller.model.pontuacao = 30
-        InputController().tratar_evento(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_r), controller.model)
-        self.assertEqual(controller.model.estado, GameModel.CALIBRANDO)
-        self.assertEqual(controller.model.pontuacao, 0)
-        controller._aplicar_entrada(EntradaJogadores())
-        self.assertEqual(controller.model.estado, GameModel.JOGANDO)
+    @patch('src.config.USAR_CAMERA', False)
+    def test_keyboard_movement_does_not_simulate_camera_gestures(self):
+        source = KeyboardInput()
+        teclas = set()
+        with patch('pygame.key.get_pressed', return_value=Mock(__getitem__=lambda _, k: k in teclas)):
+            for pressionadas, direcoes in (
+                ({pygame.K_a, pygame.K_RIGHT}, (-1, 1)),
+                ({pygame.K_d, pygame.K_LEFT}, (1, -1)),
+                ({pygame.K_s, pygame.K_DOWN, pygame.K_x}, (0, 0)),
+                (set(), (0, 0)),
+            ):
+                teclas.clear()
+                teclas.update(pressionadas)
+                entrada = source.ler()
+                self.assertEqual((entrada.dir_p1, entrada.dir_p2), direcoes)
+                self.assertFalse(entrada.agachamento_confirmado or entrada.x_confirmado)
 
-
-class ModelRulesTests(unittest.TestCase):
-    def test_camera_targets_never_overlap_in_either_direction(self):
-        for alvos in ((400, 365), (245, 100), (500, 100), (-500, -500), (2000, 2000)):
-            with self.subTest(alvos=alvos):
-                model = GameModel(2)
-                model.p1.x, model.p2.x = 300, 365
-                model.p1.alvo_x, model.p2.alvo_x = alvos
-                for _ in range(50):
-                    model.mover_jogadores(0.02)
-                    self.assertGreaterEqual(model.p2.x - model.p1.x, 60)
-                    self.assertGreaterEqual(model.p1.x, 30)
-                    self.assertLessEqual(model.p2.x, 770)
-
-    def test_opposing_players_stop(self):
-        model = GameModel(2)
-        model.p1.x, model.p2.x = 300, 360
-        model.p1.alvo_x, model.p2.alvo_x = 500, 100
-        model.mover_jogadores(0.1)
-        self.assertEqual((model.p1.x, model.p2.x), (300, 360))
-
-    def test_scoring_and_three_misses_end_game(self):
-        model = GameModel(2)
-        model.iniciar()
-        for tipo, pontuacao in (("circulo", 1), ("quadrado", 0)):
-            item = FallingItem(model.p1.x, tipo, (0, 0, 0), 0)
-            item.y = model.p1.y
-            model.itens = [item]
-            model.update(0)
-            self.assertEqual(model.pontuacao, pontuacao)
-        model.itens = [FallingItem(400, "circulo", (0, 0, 0), 0) for _ in range(3)]
-        for item in model.itens:
-            item.y = 700
-        model.update(0)
-        self.assertEqual(model.estado, model.FIM)
-        self.assertEqual(model.pontuacao, 0)
+    @patch('src.config.USAR_CAMERA', False)
+    def test_keyboard_rules_return_and_space_restart_after_game_over(self):
+        self.model.iniciar()
+        self.model.update(3)
+        self.model.estado = self.model.FIM
+        self.model.pontuacao = 10
+        x = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_x)
+        self.controller.input.tratar_evento(x, self.model)
+        self.assertEqual(self.model.estado, self.model.REGRAS)
+        self.controller.input.tratar_evento(x, self.model)
+        self.assertEqual(self.model.estado, self.model.FIM)
+        self.controller.input.tratar_evento(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE), self.model)
+        self.assertEqual(self.model.estado, self.model.CONTAGEM)
+        self.assertEqual(self.model.pontuacao, 0)

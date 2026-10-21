@@ -1,76 +1,60 @@
 import pygame
 
-from src.config import ALTURA, COR_FUNDO, COR_TEXTO_SUAVE, LARGURA
+from src import config
+from src.config import CHAO_Y, LARGURA, ALTURA
 from src.views.hud_view import HudView
+from src.views.recursos_visuais import RecursosVisuais
 from src.views.screens_view import ScreensView
-from src.vision.tipos import StatusJogadores
+from src.models.fundos import FundoSimples
 
 
 class GameView:
-    def __init__(self, tela):
+    def __init__(self, tela, recursos=None):
         self.tela = tela
-        self.hud = HudView(tela)
-        self.telas = ScreensView(tela)
+        self.recursos = recursos or RecursosVisuais()
+        self.hud = HudView(tela, self.recursos)
+        self.telas = ScreensView(tela, self.recursos)
 
-    def render(self, model, debug=None):
-        self.tela.fill(COR_FUNDO)
-        self._desenhar_cenario()
-
+    def render(self, model, entrada=None):
+        fundo = model.fundo
+        if model.estado in (model.MENU, model.CALIBRANDO, model.REGRAS):
+            fundo = FundoSimples
+        self._desenhar_cenario(fundo)
         if model.estado == model.MENU:
-            self.telas.desenhar_menu()
+            self.telas.desenhar_menu(config.USAR_CAMERA)
         elif model.estado == model.REGRAS:
-            self.telas.desenhar_regras(model.num_jogadores)
+            self.telas.desenhar_regras(config.USAR_CAMERA)
         elif model.estado == model.CALIBRANDO:
-            progresso = debug[1].progresso if debug else 0.0
-            status = debug[1].status if debug else StatusJogadores.REPOSICIONANDO
-            self.telas.desenhar_calibracao(model.num_jogadores, progresso, status)
+            self.telas.desenhar_calibracao(usando_camera=config.USAR_CAMERA)
         else:
+            self.tela.set_clip(pygame.Rect(0, 0, LARGURA, CHAO_Y))
             for jogador in model.jogadores:
                 self.desenhar_jogador(jogador)
             for item in model.itens:
                 self.desenhar_item(item)
-            self.hud.desenhar(model)
-            dica = pygame.font.Font(None, 22).render(
-                "P: pausar  •  ESC: pausar", True, COR_TEXTO_SUAVE
-            )
-            self.tela.blit(dica, dica.get_rect(midbottom=(LARGURA // 2, ALTURA - 12)))
-            if model.estado == model.PAUSADO:
-                self.telas.desenhar_pausa()
-            elif model.estado == model.PAUSADO_POSICAO:
-                status = debug[1].status if debug else StatusJogadores.FALTA_JOGADOR
-                self.telas.desenhar_reposicionar(status)
-            elif model.estado == model.FIM:
-                self.telas.desenhar_fim(model.pontuacao, model.itens_perdidos)
+            self.tela.set_clip(None)
+            if model.estado == model.FIM:
+                self.telas.desenhar_fim(model.pontuacao)
+            else:
+                self.hud.desenhar(model)
+                if model.estado == model.CONTAGEM:
+                    self.telas.desenhar_contagem(model.numero_contagem)
         pygame.display.flip()
 
-    def _desenhar_cenario(self):
-        for y in range(130, ALTURA, 80):
-            pygame.draw.line(self.tela, (28, 37, 54), (0, y), (LARGURA, y), 1)
-        pygame.draw.line(self.tela, (63, 76, 96), (0, ALTURA - 2), (LARGURA, ALTURA - 2), 3)
+    def _desenhar_cenario(self, fundo):
+        if fundo is None:
+            self.tela.fill((36, 43, 55))
+        else:
+            self.tela.blit(self.recursos.fundo(fundo.IMAGEM, (LARGURA, CHAO_Y)), (0, 0))
+        pygame.draw.rect(self.tela, (0, 0, 0), pygame.Rect(0, CHAO_Y, LARGURA, ALTURA - CHAO_Y))
 
     def desenhar_jogador(self, jogador):
-        x, y, largura, altura = jogador.retangulo()
-        pontos = (
-            (round(jogador.x), round(y)),
-            (round(x), round(y + altura)),
-            (round(x + largura), round(y + altura)),
-        )
-        pygame.draw.polygon(self.tela, jogador.cor, pontos)
-        pygame.draw.polygon(self.tela, (245, 248, 252), pontos, width=2)
+        retangulo = pygame.Rect(round(jogador.x - jogador.largura / 2), jogador.y,
+                                jogador.largura, jogador.altura)
+        classe = type(jogador)
+        self.recursos.desenhar(self.tela, classe.IMAGEM, retangulo, 'centro_base')
 
     def desenhar_item(self, item):
-        x, y, largura, altura = item.retangulo()
-        if item.tipo == "circulo":
-            pygame.draw.circle(
-                self.tela,
-                item.cor,
-                (round(item.x), round(item.y + altura / 2)),
-                round(item.tamanho / 2),
-            )
-        else:
-            pygame.draw.rect(
-                self.tela,
-                item.cor,
-                pygame.Rect(round(x), round(y), round(largura), round(altura)),
-                border_radius=4,
-            )
+        retangulo = pygame.Rect(round(item.x - item.largura / 2), round(item.y),
+                                item.largura, item.altura)
+        self.recursos.desenhar(self.tela, item.imagem, retangulo)

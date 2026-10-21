@@ -4,13 +4,12 @@ import argparse
 import logging
 import time
 
-from src.controllers.input.camera_input import CameraInput, CameraIndisponivelError
+from src.controllers.input.camera_input import CameraInput
 from src.logging_config import configurar_logs
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--jogadores", type=int, choices=(1, 2), default=1)
     parser.add_argument("--log-level", choices=("DEBUG", "INFO", "WARNING", "ERROR"), default="INFO")
     parser.add_argument("--log-file")
     args = parser.parse_args(argv)
@@ -18,14 +17,12 @@ def main(argv=None):
     logger = logging.getLogger(__name__)
     entrada = None
     try:
-        entrada = CameraInput(args.jogadores)
-        logger.info("Teste com %d jogador(es). Pressione Q na janela para sair.", args.jogadores)
+        entrada = CameraInput()
+        logger.info("Teste com dois jogadores. Fiquem em pe. Pressione Q para sair.")
         while not entrada.erro:
             entrada.ler()
             time.sleep(0.01)
         logger.info("Teste encerrado: %s", entrada.erro)
-    except CameraIndisponivelError:
-        logger.exception("Nao foi possivel iniciar o teste de camera")
     except KeyboardInterrupt:
         logger.info("Teste interrompido pelo terminal")
     finally:

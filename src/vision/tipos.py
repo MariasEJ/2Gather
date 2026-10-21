@@ -7,10 +7,16 @@ from enum import Enum
 @dataclass(frozen=True)
 class PessoaDetectada:
     cx: float
-    cy: float
+    cy: float  # Média vertical dos quadris, normalizada pela altura total.
     tamanho: float
     cor: tuple[int, int, int] | None = None  # HSV, quando disponível
     corpo_completo: bool = True
+    bracos_x: bool = False
+    confianca_quadris: float = 1.0
+
+    @property
+    def hip_y(self):
+        return self.cy
 
 
 @dataclass
@@ -34,3 +40,6 @@ class EstadoJogadores:
     status: StatusJogadores
     prontos: bool = False
     progresso: float = 0.0
+    agachado_p1: bool = False
+    agachado_p2: bool = False
+    bracos_x: bool = False

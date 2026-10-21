@@ -15,6 +15,7 @@ from src.config import (
     POSE_COMPLEXITY,
 )
 from src.vision.tipos import PessoaDetectada
+from src.vision.gestos import detectar_gestos
 
 
 _PONTOS_CORPO_COMPLETO = (0, 11, 12, 23, 24, 25, 26, 27, 28)
@@ -24,20 +25,17 @@ logger = logging.getLogger(__name__)
 class PoseDetector:
     """Retorna centro do corpo e anota o esqueleto completo no frame da câmera."""
 
-    def __init__(self, num_jogadores=2):
-        if num_jogadores not in (1, 2):
-            raise ValueError("num_jogadores deve ser 1 ou 2")
-        self.num_jogadores = num_jogadores
+    def __init__(self):
         if not hasattr(mp, "solutions"):
             raise RuntimeError("MediaPipe sem Solutions. Instale requirements.txt no ambiente Python 3.12 do projeto.")
         logger.info("MediaPipe %s; poses=%d complexidade=%d confianca=%.2f visibilidade_quadris=%.2f",
-                    mp.__version__, num_jogadores, POSE_COMPLEXITY, CONFIANCA_POSE, CONFIANCA_QUADRIS)
+                    mp.__version__, 2, POSE_COMPLEXITY, CONFIANCA_POSE, CONFIANCA_QUADRIS)
         self.mp_pose = mp.solutions.pose
         self.mp_drawing = mp.solutions.drawing_utils
         self._poses = []
         self._ultimo_log = float("-inf")
         try:
-            for _ in range(num_jogadores):
+            for _ in range(2):
                 self._poses.append(self._criar_pose())
         except Exception:
             self.fechar()
@@ -56,17 +54,13 @@ class PoseDetector:
 
     def detectar_e_desenhar(self, frame_bgr):
         altura, largura = frame_bgr.shape[:2]
-        if self.num_jogadores == 1:
-            regioes = [(0, largura)]
-        else:
-            meio = largura // 2
-            regioes = [(0, meio), (meio, largura)]
+        meio = largura // 2
+        regioes = [(0, meio), (meio, largura)]
 
         frame_anotado = frame_bgr.copy()
         pessoas = []
         diagnosticos = []
-        if self.num_jogadores == 2:
-            cv2.line(frame_anotado, (largura // 2, 0), (largura // 2, altura), (180, 180, 180), 2)
+        cv2.line(frame_anotado, (largura // 2, 0), (largura // 2, altura), (180, 180, 180), 2)
         for indice, ((x1, x2), pose) in enumerate(zip(regioes, self._poses)):
             regiao = frame_bgr[:, x1:x2]
             rgb = cv2.cvtColor(regiao, cv2.COLOR_BGR2RGB)
@@ -119,7 +113,7 @@ class PoseDetector:
 
         agora = time.monotonic()
         if agora - self._ultimo_log >= INTERVALO_LOG_CAMERA:
-            logger.info("Deteccao %d/%d: %s", len(pessoas), self.num_jogadores, "; ".join(diagnosticos))
+            logger.info("Deteccao %d/2: %s", len(pessoas), "; ".join(diagnosticos))
             self._ultimo_log = agora
 
         return pessoas, frame_anotado
@@ -140,12 +134,15 @@ class PoseDetector:
             for indice in _PONTOS_CORPO_COMPLETO
         )
         cor = PoseDetector._cor_media_tronco(frame_bgr, cx, cy, tamanho)
+        _, bracos_x = detectar_gestos(landmarks, largura_regiao, frame_bgr.shape[0])
         return PessoaDetectada(
             cx=cx,
             cy=cy,
             tamanho=tamanho,
             cor=cor,
             corpo_completo=corpo_completo,
+            bracos_x=bracos_x,
+            confianca_quadris=min(quadril_esq.visibility, quadril_dir.visibility),
         )
 
     @staticmethod

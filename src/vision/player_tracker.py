@@ -1,119 +1,116 @@
-"""Associa deteções às identidades P1/P2 e controla a calibração."""
+﻿"""Identidades P1/P2, referências individuais dos quadris e recuperação."""
 
 import logging
-from math import hypot
+from math import fsum, hypot, isfinite
 
 from src.config import (
-    MARGEM_CENTRAL,
-    MARGEM_CRUZAMENTO,
-    PESO_COR,
-    PESO_POSICAO,
-    PESO_TAMANHO,
+    AMOSTRAS_CALIBRACAO, CONFIANCA_GESTOS, CONFIANCA_QUADRIS,
+    LIMIAR_AGACHAMENTO, MARGEM_CENTRAL, MARGEM_CRUZAMENTO,
+    OSCILACAO_CALIBRACAO, PESO_COR, PESO_POSICAO, PESO_TAMANHO,
     TEMPO_ESTABILIDADE,
-    TOLERANCIA_FRAMES,
 )
-from src.vision.tipos import EstadoJogadores, PessoaDetectada, StatusJogadores
-
+from src.vision.gestos import esta_agachado
+from src.vision.tipos import EstadoJogadores, StatusJogadores
 
 logger = logging.getLogger(__name__)
 
 
 class PlayerTracker:
-    def __init__(self, num_jogadores=2):
-        if num_jogadores not in (1, 2):
-            raise ValueError("num_jogadores deve ser 1 ou 2")
-        self.num_jogadores = num_jogadores
+    def __init__(self):
         self.reset()
 
     def reset(self):
-        self.p1 = None
-        self.p2 = None
+        self.p1 = self.p2 = None
+        self.referencias = [None, None]
         self.travado = False
-        self.frames_sem_gente = 0
+        self._ultimo_tempo = None
+        self._limpar_amostras()
+        self._ultimo_estado = EstadoJogadores(None, None, StatusJogadores.REPOSICIONANDO)
+
+    def _limpar_amostras(self):
         self.inicio_estabilidade = None
-        self._ultimo_estado = EstadoJogadores(
-            None, None, StatusJogadores.REPOSICIONANDO, False, 0.0
-        )
+        self._amostras = [[], []]
 
     def atualizar(self, pessoas, agora):
-        pessoas = [
-            pessoa
-            for pessoa in pessoas
-            # A pose completa continua sendo desenhada pela câmera, mas o
-            # controle e a calibração dependem apenas dos quadris visíveis.
-            if pessoa is not None
-        ]
-        pessoas = sorted(pessoas, key=lambda pessoa: pessoa.tamanho, reverse=True)
-        pessoas = pessoas[: self.num_jogadores]
+        if self._ultimo_tempo is not None and agora <= self._ultimo_tempo:
+            return self._ultimo_estado
+        self._ultimo_tempo = agora
+        pessoas = [p for p in pessoas if p is not None
+                   and all(isfinite(v) for v in (p.cx, p.cy, p.tamanho, p.confianca_quadris))
+                   and 0 <= p.cx <= 1 and 0 <= p.cy <= 1
+                   and p.confianca_quadris >= CONFIANCA_QUADRIS]
+        pessoas = sorted(pessoas, key=lambda p: p.tamanho, reverse=True)[:2]
+        if len(pessoas) < 2:
+            self.travado = False
+            self._limpar_amostras()
+            atuais = [None, None]
+            if len(pessoas) == 1 and all(r is not None for r in self.referencias):
+                p = pessoas[0]
+                custos = [self._custo(p, anterior) for anterior in (self.p1, self.p2)]
+                dono = 0 if custos[0] < custos[1] else 1
+                lado_correto = p.cx < 0.5 - MARGEM_CENTRAL if dono == 0 else p.cx > 0.5 + MARGEM_CENTRAL
+                if lado_correto and min(custos) < 0.35 and abs(custos[0] - custos[1]) > 0.1:
+                    atuais[dono] = p
+            return self._salvar(StatusJogadores.FALTA_JOGADOR, atuais)
 
-        if len(pessoas) < self.num_jogadores:
-            return self._tratar_ausencia()
-        self.frames_sem_gente = 0
+        if all(r is not None for r in self.referencias):
+            atuais = self._associar_dupla(pessoas)
+            if atuais is None:
+                self.travado = False
+                self._limpar_amostras()
+                return self._salvar(StatusJogadores.REPOSICIONANDO)
+        else:
+            atuais = sorted(pessoas, key=lambda p: p.cx)
+
+        if atuais[0].cx > atuais[1].cx + MARGEM_CRUZAMENTO:
+            self.travado = False
+            self._limpar_amostras()
+            return self._salvar(StatusJogadores.CRUZARAM)
 
         if not self.travado:
-            return self._tentar_calibracao(pessoas, agora)
-        if self.num_jogadores == 1:
-            self.p1 = pessoas[0]
-            return self._salvar(StatusJogadores.OK, True, 1.0)
+            return self._calibrar(atuais, agora)
+        self.p1, self.p2 = atuais
+        gestos_validos = all(p.confianca_quadris >= CONFIANCA_GESTOS for p in atuais)
+        return self._salvar(StatusJogadores.OK, atuais, gestos_validos, 1.0)
 
-        novo_p1, novo_p2 = self._associar_dupla(pessoas)
-        self.p1, self.p2 = novo_p1, novo_p2
-        if self.p1.cx > self.p2.cx + MARGEM_CRUZAMENTO:
-            self.travado = False
-            self.inicio_estabilidade = None
-            return self._salvar(StatusJogadores.CRUZARAM, False, 0.0)
-        return self._salvar(StatusJogadores.OK, True, 1.0)
-
-    def _tratar_ausencia(self):
-        self.frames_sem_gente += 1
-        if self.frames_sem_gente <= TOLERANCIA_FRAMES:
-            anterior = self._ultimo_estado
-            if anterior.status == StatusJogadores.OK:
-                return anterior
-            if self.inicio_estabilidade is not None:
-                return self._salvar(StatusJogadores.REPOSICIONANDO, False, anterior.progresso)
-
-        self.travado = False
-        self.inicio_estabilidade = None
-        return self._salvar(StatusJogadores.FALTA_JOGADOR, False, 0.0)
-
-    def _tentar_calibracao(self, pessoas, agora):
-        ordenadas = sorted(pessoas, key=lambda pessoa: pessoa.cx)
-        if self.num_jogadores == 1:
-            atuais = (ordenadas[0],)
-            posicao_inicial_valida = True
-        else:
-            esquerda, direita = ordenadas
-            posicao_inicial_valida = (
-                esquerda.cx < 0.5 - MARGEM_CENTRAL
-                and direita.cx > 0.5 + MARGEM_CENTRAL
-            )
-            atuais = (esquerda, direita)
-
-        self.p1 = atuais[0]
-        self.p2 = atuais[1] if self.num_jogadores == 2 else None
-
-        if not posicao_inicial_valida:
-            self.inicio_estabilidade = None
-            return self._salvar(StatusJogadores.REPOSICIONANDO, False, 0.0)
-
+    def _calibrar(self, atuais, agora):
+        if not (atuais[0].cx < 0.5 - MARGEM_CENTRAL and atuais[1].cx > 0.5 + MARGEM_CENTRAL):
+            self._limpar_amostras()
+            return self._salvar(StatusJogadores.REPOSICIONANDO)
+        for indice, p in enumerate(atuais):
+            referencia = self.referencias[indice]
+            if p.confianca_quadris < CONFIANCA_GESTOS or (
+                referencia is not None and abs(p.hip_y - referencia) > LIMIAR_AGACHAMENTO
+            ):
+                self._limpar_amostras()
+                return self._salvar(StatusJogadores.REPOSICIONANDO)
+            amostras = self._amostras[indice]
+            if amostras and max(max(amostras), p.hip_y) - min(min(amostras), p.hip_y) > OSCILACAO_CALIBRACAO:
+                self._limpar_amostras()
+                break
         if self.inicio_estabilidade is None:
             self.inicio_estabilidade = agora
-        decorrido = max(0.0, agora - self.inicio_estabilidade)
-        progresso = min(1.0, decorrido / TEMPO_ESTABILIDADE)
+        for indice, p in enumerate(atuais):
+            self._amostras[indice].append(p.hip_y)
+        progresso = min(1.0, (agora - self.inicio_estabilidade) / TEMPO_ESTABILIDADE,
+                        len(self._amostras[0]) / AMOSTRAS_CALIBRACAO)
         if progresso >= 1.0:
-            self.p1 = atuais[0]
-            self.p2 = atuais[1] if self.num_jogadores == 2 else None
+            for indice in range(2):
+                if self.referencias[indice] is None:
+                    self.referencias[indice] = fsum(self._amostras[indice]) / len(self._amostras[indice])
+            self.p1, self.p2 = atuais
             self.travado = True
-            self.inicio_estabilidade = None
-            return self._salvar(StatusJogadores.OK, True, 1.0)
-        return self._salvar(StatusJogadores.REPOSICIONANDO, False, progresso)
+            self._limpar_amostras()
+            return self._salvar(StatusJogadores.OK, atuais, True, 1.0)
+        return self._salvar(StatusJogadores.REPOSICIONANDO, progresso=progresso)
 
     def _associar_dupla(self, pessoas):
         a, b = pessoas
-        custo_direto = self._custo(a, self.p1) + self._custo(b, self.p2)
-        custo_trocado = self._custo(a, self.p2) + self._custo(b, self.p1)
-        return (a, b) if custo_direto <= custo_trocado else (b, a)
+        direto = self._custo(a, self.p1) + self._custo(b, self.p2)
+        trocado = self._custo(a, self.p2) + self._custo(b, self.p1)
+        if abs(direto - trocado) < 0.05 or min(direto, trocado) > 1.0:
+            return None
+        return (a, b) if direto < trocado else (b, a)
 
     @staticmethod
     def _custo(atual, anterior):
@@ -126,15 +123,14 @@ class PlayerTracker:
             custo += PESO_COR * hypot(dh, ds, dv)
         return custo
 
-    def _salvar(self, status, prontos, progresso):
+    def _salvar(self, status, atuais=(None, None), prontos=False, progresso=0.0):
+        p1, p2 = atuais
         if (status, prontos) != (self._ultimo_estado.status, self._ultimo_estado.prontos):
-            logger.info("Rastreamento: %s -> %s; prontos=%s; ausencias=%d",
-                        self._ultimo_estado.status.value, status.value, prontos, self.frames_sem_gente)
+            logger.info('Rastreamento: %s -> %s; prontos=%s', self._ultimo_estado.status.value, status.value, prontos)
         self._ultimo_estado = EstadoJogadores(
-            self.p1.cx if self.p1 else None,
-            self.p2.cx if self.p2 else None,
-            status,
-            prontos,
-            progresso,
+            p1.cx if p1 else None, p2.cx if p2 else None, status, prontos, progresso,
+            bool(prontos and esta_agachado(p1.hip_y, self.referencias[0], p1.confianca_quadris)),
+            bool(prontos and esta_agachado(p2.hip_y, self.referencias[1], p2.confianca_quadris)),
+            bool(prontos and (p1.bracos_x or p2.bracos_x)),
         )
         return self._ultimo_estado
