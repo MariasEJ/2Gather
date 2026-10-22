@@ -70,7 +70,7 @@ class GameModel:
             self.estado = self.CALIBRANDO
 
     def mostrar_regras(self):
-        if self.estado in (self.MENU, self.CALIBRANDO, self.FIM):
+        if self.estado in (self.MENU, self.FIM):
             self._estado_antes_regras = self.estado
             self.estado = self.REGRAS
 

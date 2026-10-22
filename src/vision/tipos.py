@@ -13,6 +13,7 @@ class PessoaDetectada:
     corpo_completo: bool = True
     bracos_x: bool = False
     confianca_quadris: float = 1.0
+    foot_y: float | None = None  # Média dos tornozelos
 
     @property
     def hip_y(self):
@@ -43,3 +44,5 @@ class EstadoJogadores:
     agachado_p1: bool = False
     agachado_p2: bool = False
     bracos_x: bool = False
+    pulou_p1: bool = False
+    pulou_p2: bool = False

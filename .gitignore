@@ -21,6 +21,9 @@ htmlcov/
 *.swp
 *.swo
 
+# Documento do TCC
+GDD/
+
 # Arquivos do sistema operacional
 .DS_Store
 Thumbs.db

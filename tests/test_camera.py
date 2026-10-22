@@ -35,6 +35,18 @@ class PoseTests(unittest.TestCase):
         self.assertFalse(pessoa.corpo_completo)
         self.assertEqual(pessoa.cx, 0.5)
 
+    def test_jump_requires_both_ankles_visible_and_in_frame(self):
+        pontos = landmarks()
+        pontos[27].y, pontos[28].y = 0.9, 0.94
+        pessoa = PoseDetector._extrair_pessoa(pontos, self.frame, 0, 640, 640)
+        self.assertAlmostEqual(pessoa.foot_y, 0.92)
+        for campo, valor in (("visibility", 0.1), ("y", 1.1), ("y", float("nan"))):
+            with self.subTest(campo=campo, valor=valor):
+                pontos = landmarks()
+                setattr(pontos[27], campo, valor)
+                pessoa = PoseDetector._extrair_pessoa(pontos, self.frame, 0, 640, 640)
+                self.assertIsNone(pessoa.foot_y)
+
     def test_moderate_visibility_is_not_confused_with_detection_confidence(self):
         pessoa = PoseDetector._extrair_pessoa(landmarks(0.4), self.frame, 0, 640, 640)
         self.assertIsNotNone(pessoa)
@@ -52,6 +64,15 @@ class PoseTests(unittest.TestCase):
         self.assertEqual((esquerda.cx, direita.cx), (0.25, 0.75))
         self.assertEqual((esquerda.hip_y, direita.hip_y), (0.5, 0.5))
         self.assertEqual(esquerda.confianca_quadris, 0.9)
+
+    def test_identity_color_comes_from_torso_instead_of_hips(self):
+        pontos = landmarks()
+        pontos[11].y = pontos[12].y = 0.2
+        pontos[23].y = pontos[24].y = 0.6
+        self.frame[150:230] = (0, 0, 255)
+        self.frame[250:330] = (255, 0, 0)
+        pessoa = PoseDetector._extrair_pessoa(pontos, self.frame, 0, 640, 640)
+        self.assertEqual(pessoa.cor, (0, 255, 255))
 
     def test_two_regions_are_processed_and_drawn(self):
         detector = PoseDetector.__new__(PoseDetector)
@@ -112,6 +133,33 @@ class CameraInputTests(unittest.TestCase):
         self.assertTrue(entrada.agachado_p1 and entrada.agachado_p2)
         self.assertIsNotNone(entrada.alvo_p1)
         self.assertIsNotNone(entrada.alvo_p2)
+
+    def test_either_player_jump_is_a_single_event_on_fresh_camera_samples(self):
+        for jogador in range(2):
+            with self.subTest(jogador=jogador):
+                self.entrada.recalibrar()
+                inicio = time.monotonic() + jogador * 10
+                pessoas = [replace(p, foot_y=0.9) for p in self.pessoas()]
+                for i in range(31):
+                    self.ler_quadro(inicio + i * 0.04, pessoas)
+                pulando = list(pessoas)
+                pulando[jogador] = replace(pessoas[jogador], cy=0.42, foot_y=0.84)
+                self.assertTrue(self.ler_quadro(inicio + 1.24, pulando).pulo_confirmado)
+                self.assertFalse(self.entrada.ler().pulo_confirmado)
+                self.assertFalse(self.ler_quadro(inicio + 1.28, pulando).pulo_confirmado)
+                self.ler_quadro(inicio + 1.6, pessoas)
+                self.ler_quadro(inicio + 1.8, pessoas)
+                self.assertTrue(self.ler_quadro(inicio + 1.84, pulando).pulo_confirmado)
+
+    def test_pair_jumping_almost_together_does_not_toggle_menu_twice(self):
+        inicio = time.monotonic()
+        pessoas = [replace(p, foot_y=0.9) for p in self.pessoas()]
+        for i in range(31):
+            self.ler_quadro(inicio + i * 0.04, pessoas)
+        pessoas[0] = replace(pessoas[0], cy=0.42, foot_y=0.84)
+        self.assertTrue(self.ler_quadro(inicio + 1.24, pessoas).pulo_confirmado)
+        pessoas[1] = replace(pessoas[1], cy=0.42, foot_y=0.84)
+        self.assertFalse(self.ler_quadro(inicio + 1.28, pessoas).pulo_confirmado)
 
     def test_missing_pose_discards_old_target_and_gesture(self):
         agora = self.calibrar()

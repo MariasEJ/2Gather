@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from src.config import (
     CAMERA_JANELA_NOME, CAMERA_TIMEOUT_INICIAL, CAMERA_TIMEOUT_QUADRO,
-    INTERVALO_LOG_CAMERA,
+    COOLDOWN_PULO, INTERVALO_LOG_CAMERA,
 )
 from src.controllers.input.input_source import ConfirmadorGestos, EntradaJogadores, InputSource
 from src.vision.camera_worker import CameraWorker
@@ -28,6 +28,7 @@ class CameraInput(InputSource):
         self.suav_p1, self.suav_p2 = SuavizadorEMA(), SuavizadorEMA()
         self.confirmador = ConfirmadorGestos()
         self._ultimo_timestamp = self._ultima_entrada = None
+        self._ultimo_pulo = float('-inf')
         try:
             import cv2
             import mediapipe
@@ -75,7 +76,7 @@ class CameraInput(InputSource):
             return self._neutra(None, StatusJogadores.REPOSICIONANDO, 'Aguardando a câmera...')
         if self._ultimo_timestamp is not None and quadro.timestamp_ms <= self._ultimo_timestamp:
             return replace(self._ultima_entrada, amostra_nova=False,
-                           agachamento_confirmado=False, x_confirmado=False)
+                           agachamento_confirmado=False, x_confirmado=False, pulo_confirmado=False)
 
         self._ultimo_timestamp = quadro.timestamp_ms
         estado = self.tracker.atualizar(quadro.pessoas, quadro.timestamp_ms / 1000)
@@ -91,6 +92,11 @@ class CameraInput(InputSource):
             estado.agachado_p1 and estado.agachado_p2, estado.bracos_x,
             quadro.timestamp_ms / 1000, estado.prontos and estado.status == StatusJogadores.OK,
         )
+        tempo_quadro = quadro.timestamp_ms / 1000
+        pulo = ((estado.pulou_p1 or estado.pulou_p2)
+                and tempo_quadro - self._ultimo_pulo >= COOLDOWN_PULO)
+        if pulo:
+            self._ultimo_pulo = tempo_quadro
         aviso = ''
         if not estado.prontos:
             aviso = ('Voltem aos seus lados e fiquem em pé, com os quadris visíveis.'
@@ -103,6 +109,7 @@ class CameraInput(InputSource):
             debug=(quadro, estado), aviso=aviso,
             agachado_p1=estado.agachado_p1, agachado_p2=estado.agachado_p2,
             bracos_x=estado.bracos_x, agachamento_confirmado=agachamento, x_confirmado=x,
+            pulo_confirmado=pulo,
         )
         logger.debug('Quadro=%d centros=(%s, %s) alvos=%s status=%s',
                      quadro.timestamp_ms, estado.p1_cx, estado.p2_cx, alvos, estado.status.value)
@@ -129,7 +136,14 @@ class CameraInput(InputSource):
                 self.cv2.putText(frame, f'Controles: {len(quadro.pessoas)}/2 | Q: fechar camera',
                                  (12, frame.shape[0] - 18), self.cv2.FONT_HERSHEY_SIMPLEX,
                                  0.6, (255, 255, 255), 2, self.cv2.LINE_AA)
-                self.cv2.putText(frame, 'Calibracao: fiquem em pe, com quadris visiveis',
+                if self._ultima_entrada is not None and self._ultima_entrada.prontos:
+                    pes = sum(ref is not None for ref in self.tracker.referencias_pes)
+                    instrucao = (f'Controle pronto | Pes calibrados: {pes}/2 | Pule para informacoes'
+                                 if pes else 'Controle pronto | Enquadre os pes em pe para calibrar o pulo')
+                else:
+                    progresso = self._ultima_entrada.progresso if self._ultima_entrada else 0
+                    instrucao = f'Calibracao {progresso:.0%}: fiquem em pe, com quadris e pes visiveis'
+                self.cv2.putText(frame, instrucao,
                                  (12, 55), self.cv2.FONT_HERSHEY_SIMPLEX,
                                  0.55, (0, 180, 255), 2, self.cv2.LINE_AA)
                 self.cv2.imshow(CAMERA_JANELA_NOME, frame)
@@ -157,6 +171,7 @@ class CameraInput(InputSource):
         self.suav_p1.reset()
         self.suav_p2.reset()
         self.confirmador.reset()
+        self._ultimo_pulo = float('-inf')
         # Uma pose em cache não pode virar a primeira amostra da nova calibração.
         if self._ultima_entrada is not None:
             self._ultima_entrada = self._neutra(None, StatusJogadores.REPOSICIONANDO,

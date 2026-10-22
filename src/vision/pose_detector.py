@@ -9,6 +9,7 @@ import mediapipe as mp
 
 from src.config import (
     CONFIANCA_CORPO_COMPLETO,
+    CONFIANCA_GESTOS,
     CONFIANCA_POSE,
     CONFIANCA_QUADRIS,
     INTERVALO_LOG_CAMERA,
@@ -133,8 +134,16 @@ class PoseDetector:
             PoseDetector._ponto_visivel(landmarks[indice], CONFIANCA_CORPO_COMPLETO)
             for indice in _PONTOS_CORPO_COMPLETO
         )
-        cor = PoseDetector._cor_media_tronco(frame_bgr, cx, cy, tamanho)
+        ombros = landmarks[11:13]
+        centro_tronco_y = cy
+        if all(PoseDetector._ponto_visivel(p, CONFIANCA_QUADRIS) for p in ombros):
+            centro_tronco_y = (cy + (ombros[0].y + ombros[1].y) / 2) / 2
+        cor = PoseDetector._cor_media_tronco(frame_bgr, cx, centro_tronco_y, tamanho)
         _, bracos_x = detectar_gestos(landmarks, largura_regiao, frame_bgr.shape[0])
+        tornozelos = landmarks[27:29]
+        foot_y = None
+        if all(PoseDetector._ponto_visivel(p, CONFIANCA_GESTOS) for p in tornozelos):
+            foot_y = (tornozelos[0].y + tornozelos[1].y) / 2
         return PessoaDetectada(
             cx=cx,
             cy=cy,
@@ -143,6 +152,7 @@ class PoseDetector:
             corpo_completo=corpo_completo,
             bracos_x=bracos_x,
             confianca_quadris=min(quadril_esq.visibility, quadril_dir.visibility),
+            foot_y=foot_y,
         )
 
     @staticmethod

@@ -26,6 +26,7 @@ class EntradaJogadores:
     valido_p1: bool | None = None
     valido_p2: bool | None = None
     aviso: str = ""
+    pulo_confirmado: bool = False
 
 
 class ConfirmadorGestos:

@@ -27,7 +27,6 @@ class GameController:
         self.clock = pygame.time.Clock()
         self.rodando = True
         self._agachamento_armado = False
-        self._x_armado = True
         self._estado_entrada = self.model.estado
 
     def run(self):
@@ -79,7 +78,7 @@ class GameController:
                 jogador.direcao = getattr(entrada, f"dir_p{indice}") or 0
 
         if not entrada.prontos or entrada.status != StatusJogadores.OK:
-            self._agachamento_armado = self._x_armado = False
+            self._agachamento_armado = False
             return
         if not config.USAR_CAMERA:
             return
@@ -87,13 +86,10 @@ class GameController:
             return
         if not entrada.agachado_p1 and not entrada.agachado_p2:
             self._agachamento_armado = True
-        if not entrada.bracos_x:
-            self._x_armado = True
-        if entrada.x_confirmado and self._x_armado:
-            self._x_armado = False
+        if entrada.pulo_confirmado:
             if model.estado == model.REGRAS:
                 model.voltar_menu()
-            else:
+            elif model.estado in (model.MENU, model.FIM):
                 model.mostrar_regras()
             return
         if entrada.agachamento_confirmado and self._agachamento_armado:

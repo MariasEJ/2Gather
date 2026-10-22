@@ -2,7 +2,54 @@
 
 from math import isfinite
 
-from src.config import LIMIAR_AGACHAMENTO, CONFIANCA_GESTOS
+from src.config import (
+    LIMIAR_AGACHAMENTO, CONFIANCA_GESTOS, LIMIAR_PULO, LIMIAR_PES_PULO,
+    VELOCIDADE_MIN_SUBIDA, COOLDOWN_PULO, INTERVALO_MAX_AMOSTRAS_PULO,
+)
+
+
+class DetectorPulo:
+    """Quadris e pés subindo juntos; um evento por salto, rearmado no chão."""
+
+    def __init__(self):
+        self._ultimo_pulo = float('-inf')
+        self.reset_movimento()
+
+    def reset_movimento(self):
+        self._anterior = None
+        self._armado = False
+
+    def atualizar(self, hip_y, foot_y, baseline_hip_y, baseline_foot_y, agora,
+                  confianca=1.0):
+        valores = (hip_y, foot_y, baseline_hip_y, baseline_foot_y)
+        if (not all(v is not None and isfinite(v) and 0 <= v <= 1 for v in valores)
+                or not isfinite(confianca) or confianca < CONFIANCA_GESTOS):
+            self.reset_movimento()
+            return False
+        anterior = self._anterior
+        if anterior is not None and agora <= anterior[1]:
+            return False
+        self._anterior = (hip_y, agora)
+        if anterior is None or agora - anterior[1] > INTERVALO_MAX_AMOSTRAS_PULO:
+            self._armado = False
+            anterior = None
+
+        no_chao = (abs(hip_y - baseline_hip_y) <= LIMIAR_PULO / 2
+                   and abs(foot_y - baseline_foot_y) <= LIMIAR_PES_PULO / 2)
+        if no_chao:
+            self._armado = True
+        if anterior is None or not self._armado:
+            return False
+
+        velocidade_subida = (anterior[0] - hip_y) / (agora - anterior[1])
+        if (hip_y < baseline_hip_y - LIMIAR_PULO
+                and foot_y < baseline_foot_y - LIMIAR_PES_PULO
+                and velocidade_subida > VELOCIDADE_MIN_SUBIDA
+                and agora - self._ultimo_pulo >= COOLDOWN_PULO):
+            self._ultimo_pulo = agora
+            self._armado = False
+            return True
+        return False
 
 
 def esta_agachado(hip_y, baseline_hip_y, confianca=1.0):

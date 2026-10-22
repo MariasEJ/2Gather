@@ -37,7 +37,7 @@ class ScreensView:
     def desenhar_menu(self, usando_camera=True):
         self.recursos.desenhar(self.tela, 'imagens/logo1.png', pygame.Rect(250, 65, 300, 150))
         inicio, regras = (
-            ('agache para começar', 'cruze os braços para regras') if usando_camera
+            ('agachem juntos para começar', 'pule para abrir as informações') if usando_camera
             else ('aperte espaço para iniciar', 'aperte x para regras')
         )
         self._texto_centralizado(inicio, 285, self.fonte)
@@ -57,8 +57,8 @@ class ScreensView:
             'A captura exige contato e a mesma faixa. Um acerto vale +1; um erro, -1.',
             'Três resíduos perdidos ou -5 pontos encerram a rodada da dupla.',
             'Movam o corpo para os lados; as lixeiras não se atravessam.',
-            'Agachem juntos para iniciar ou reiniciar. Durante o jogo, não faz nada.',
-            'Cruzem os braços para abrir e fechar as regras. ESC ou Voltar também retorna.',
+            'Agachem juntos para começar. Um jogador pula para abrir/fechar informações.',
+            'Informações: só no início ou GAME OVER. ESC ou Voltar também fecha.',
         )
         for indice, linha in enumerate(linhas):
             self._texto_centralizado(linha, CHAO_Y - 210 + indice * 26, self.fonte_pequena)

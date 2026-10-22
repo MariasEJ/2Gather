@@ -47,6 +47,52 @@ class TrackingTests(unittest.TestCase):
         self.assertIsNone(estado.p2_cx)
         self.assertFalse(estado.agachado_p1 or estado.agachado_p2)
 
+    def test_brief_pose_loss_recovers_without_repeating_calibration(self):
+        tracker = PlayerTracker()
+        calibrar(tracker)
+        self.assertFalse(tracker.atualizar([], 1.24).prontos)
+        estado = tracker.atualizar(dupla(), 1.28)
+        self.assertTrue(estado.prontos)
+        self.assertEqual((estado.p1_cx, estado.p2_cx), (0.25, 0.75))
+        self.assertEqual(tracker.referencias, [0.5, 0.6])
+
+    def test_long_pose_loss_still_requires_standing_confirmation(self):
+        tracker = PlayerTracker()
+        calibrar(tracker)
+        tracker.atualizar([], 1.24)
+        self.assertFalse(tracker.atualizar(dupla(), 3).prontos)
+        self.assertTrue(calibrar(tracker, inicio=3.04).prontos)
+
+    def test_feet_can_calibrate_after_hips_without_restarting_player_control(self):
+        tracker = PlayerTracker()
+        calibrar(tracker)
+        pessoas = [replace(p, foot_y=0.95) for p in dupla()]
+        for i in range(30):
+            self.assertTrue(tracker.atualizar(pessoas, 1.24 + i * 0.04).prontos)
+        self.assertEqual(tracker.referencias_pes, [0.95, 0.95])
+        pessoas[1] = replace(pessoas[1], cy=0.52, foot_y=0.89)
+        estado = tracker.atualizar(pessoas, 2.44)
+        self.assertTrue(estado.pulou_p2)
+        self.assertFalse(estado.pulou_p1)
+
+    def test_missing_pose_does_not_turn_reappearance_in_air_into_jump(self):
+        tracker = PlayerTracker()
+        pessoas = [replace(p, foot_y=0.95) for p in dupla()]
+        calibrar(tracker, pessoas)
+        tracker.atualizar([], 1.24)
+        pessoas[0] = replace(pessoas[0], cy=0.42, foot_y=0.89)
+        estado = tracker.atualizar(pessoas, 1.28)
+        self.assertFalse(estado.pulou_p1 or estado.pulou_p2)
+
+    def test_fast_samples_do_not_fix_feet_before_hip_calibration(self):
+        tracker = PlayerTracker()
+        pessoas = [replace(p, foot_y=0.95) for p in dupla()]
+        for i in range(40):
+            tracker.atualizar(pessoas, i * 0.01)
+        self.assertEqual(tracker.referencias_pes, [None, None])
+        self.assertTrue(calibrar(tracker, pessoas, inicio=0.4).prontos)
+        self.assertEqual(tracker.referencias_pes, [0.95, 0.95])
+
     def test_reliable_remaining_player_can_move(self):
         tracker = PlayerTracker()
         calibrar(tracker)
