@@ -7,7 +7,7 @@ class HudView:
     def __init__(self, tela, recursos):
         self.tela = tela
         self.recursos = recursos
-        self.fonte_pontos = pygame.font.Font(None, 46)
+        self.fonte_pontos = pygame.font.Font('fontes/Stardew_Valley.ttf', 46)
 
     def desenhar(self, model):
         faixa_placar = pygame.Rect(LARGURA // 2 - 46, 10, 92, 52)
@@ -20,5 +20,5 @@ class HudView:
         pygame.draw.rect(self.tela, (10, 14, 22), faixa_vidas, border_radius=9)
         pygame.draw.rect(self.tela, (205, 215, 225), faixa_vidas, width=1, border_radius=9)
         vidas = MAX_ITENS_PERDIDOS - model.itens_perdidos
-        texto_vidas = pygame.font.Font(None, 27).render(f'Vidas: {vidas}', True, COR_TEXTO)
+        texto_vidas = pygame.font.Font('fontes/Stardew_Valley.ttf', 27).render(f'Vidas: {vidas}', True, COR_TEXTO)
         self.tela.blit(texto_vidas, texto_vidas.get_rect(center=faixa_vidas.center))

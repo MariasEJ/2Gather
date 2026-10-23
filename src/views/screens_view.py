@@ -8,9 +8,9 @@ class ScreensView:
     def __init__(self, tela, recursos):
         self.tela = tela
         self.recursos = recursos
-        self.fonte_titulo = pygame.font.Font(None, 54)
-        self.fonte = pygame.font.Font(None, 28)
-        self.fonte_pequena = pygame.font.Font(None, 21)
+        self.fonte_titulo = pygame.font.Font('fontes/Stardew_Valley.ttf', 54)
+        self.fonte = pygame.font.Font('fontes/Starshines.ttf', 28)
+        self.fonte_pequena = pygame.font.Font('fontes/Stardew_Valley.ttf', 21)
         self.botao_voltar = pygame.Rect(LARGURA // 2 - 140, CHAO_Y - 70, 280, 46)
 
     def _texto_centralizado(self, texto, y, fonte, cor=COR_TEXTO, x=None, sombra=False):
@@ -48,16 +48,16 @@ class ScreensView:
         self._texto_centralizado('CATEGORIAS E CONTROLES', 59, self.fonte_titulo)
         self._desenhar_categorias(168)
         linhas = (
-            'A captura exige contato e a mesma faixa. Um acerto vale +1; um erro, -1.',
-            'Três resíduos perdidos ou -5 pontos encerram a rodada da dupla.',
-            'As lixeiras movem somente para os lados e não se atravessam.',
+            'Um acerto vale 1; um erro, -1.',
+            '3 resíduos perdidos ou -5 pontos encerram a rodada da dupla.',
+            'As lixeiras movem somente para os lados e nao se atravessam.',
             'Espaço inicia ou reinicia a rodada.',
             'P1: A/D; P2: setas esquerda/direita. X ou ESC retorna.',
         ) if not usando_camera else (
-            'A captura exige contato e a mesma faixa. Um acerto vale +1; um erro, -1.',
-            'Três resíduos perdidos ou -5 pontos encerram a rodada da dupla.',
-            'Movam o corpo para os lados; as lixeiras não se atravessam.',
-            'Agachem juntos para iniciar ou reiniciar. Durante o jogo, não faz nada.',
+            'Um acerto vale 1; um erro, -1.',
+            '3 resíduos perdidos ou -5 pontos encerram a rodada da dupla.',
+            'Movam o corpo para os lados; as lixeiras nao se atravessam.',
+            'Agachem juntos para iniciar ou reiniciar. Durante o jogo, nao faz nada.',
             'Cruzem os braços para abrir e fechar as regras. ESC ou Voltar também retorna.',
         )
         for indice, linha in enumerate(linhas):
@@ -71,9 +71,9 @@ class ScreensView:
             pygame.draw.rect(self.tela, (32, 41, 58), cartao, border_radius=9)
             imagem = pygame.Rect(x - 22, y - 28, 44, 34)
             self.recursos.desenhar(self.tela, classe.IMAGEM, imagem)
-            nome = pygame.font.Font(None, 20).render(classe.NOME, True, COR_TEXTO)
+            nome = pygame.font.Font('fontes/Starshines.ttf', 20).render(classe.NOME, True, COR_TEXTO)
             self.tela.blit(nome, nome.get_rect(center=(x, y + 13)))
-            fonte = pygame.font.Font(None, 15)
+            fonte = pygame.font.Font('fontes/Stardew_Valley.ttf', 15)
             for linha, item in enumerate(classe.ITENS[:2]):
                 texto = fonte.render(item.nome, True, COR_TEXTO_SUAVE)
                 self.tela.blit(texto, texto.get_rect(center=(x, y + 35 + linha * 17)))
@@ -82,7 +82,7 @@ class ScreensView:
         self.desenhar_menu(usando_camera)
 
     def desenhar_contagem(self, numero):
-        self._texto_centralizado(str(numero), CHAO_Y // 2, pygame.font.Font(None, 144), sombra=True)
+        self._texto_centralizado(str(numero), CHAO_Y // 2, pygame.font.Font('fontes/Starshines.ttf', 144), sombra=True)
 
     def desenhar_fim(self, pontuacao):
         self._texto_centralizado('GAME OVER', CHAO_Y // 2 - 28, self.fonte_titulo, sombra=True)

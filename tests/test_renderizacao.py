@@ -61,8 +61,8 @@ class RenderizacaoTests(unittest.TestCase):
         pygame.draw.rect(original, (255, 0, 0, 255), pygame.Rect(20, 5, 40, 30))
         with patch('src.views.recursos_visuais.Path.is_file', return_value=True), \
                 patch('src.views.recursos_visuais.pygame.image.load', return_value=original.copy()) as carregar:
-            a = recursos.sprite('imagens/teste.png', (32, 32))
-            b = recursos.sprite('imagens/teste.png', (32, 32))
+            a = recursos.sprite('imagens/teste.png', (64, 64))
+            b = recursos.sprite('imagens/teste.png', (64, 64))
             self.assertIs(a, b)
             self.assertEqual(a.get_size(), (28, 21))
             self.assertEqual(carregar.call_count, 1)
@@ -74,7 +74,7 @@ class RenderizacaoTests(unittest.TestCase):
     def test_missing_image_reports_which_file_to_add(self):
         recursos = RecursosVisuais(Path(__file__).resolve().parents[1])
         with self.assertRaisesRegex(FileNotFoundError, 'missing.png'):
-            recursos.sprite('imagens/missing.png', (32, 32))
+            recursos.sprite('imagens/missing.png', (64, 64))
 
     def test_every_lixeira_item_and_background_image_loads(self):
         recursos = RecursosVisuais()
@@ -83,7 +83,7 @@ class RenderizacaoTests(unittest.TestCase):
                 self.assertGreater(recursos.sprite(classe.IMAGEM, (96, 96)).get_width(), 0)
             for item in classe.ITENS:
                 with self.subTest(item=item.id):
-                    self.assertGreater(recursos.sprite(item.imagem, (32, 32)).get_width(), 0)
+                    self.assertGreater(recursos.sprite(item.imagem, (64, 64)).get_width(), 0)
         for fundo in FUNDOS:
             with self.subTest(fundo=fundo.ID):
                 self.assertEqual(recursos.fundo(fundo.IMAGEM, (LARGURA, CHAO_Y)).get_size(), (LARGURA, CHAO_Y))
