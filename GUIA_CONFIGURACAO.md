@@ -1,140 +1,107 @@
-# Guia de configuração do Catch Duo
+# Guia de configuração do 2Gather
 
-As opções principais ficam em `src/config.py`.
+As regras de tela e entrada estão em `src/config.py`; os dados de cada lixeira ficam em sua própria classe dentro de `src/models/lixeiras/`, por exemplo `src/models/lixeiras/vidro.py`.
 
-## Tela e aparência
+## Tela e movimento
 
-| O que alterar | Arquivo | Variável |
+| O que ajustar | Arquivo | Parâmetros |
 |---|---|---|
-| Largura da janela | `src/config.py` | `LARGURA` |
-| Altura da janela | `src/config.py` | `ALTURA` |
-| Limite de quadros por segundo | `src/config.py` | `FPS` |
-| Título da janela | `src/config.py` | `TITULO` |
-| Cor de fundo | `src/config.py` | `COR_FUNDO` |
-| Cor dos painéis do menu, pausa e fim | `src/config.py` | `COR_PAINEL` |
-| Cor do texto principal | `src/config.py` | `COR_TEXTO` |
-| Cor de textos secundários | `src/config.py` | `COR_TEXTO_SUAVE` |
-| Cor do jogador P1 | `src/config.py` | `COR_P1` |
-| Cor do jogador P2 | `src/config.py` | `COR_P2` |
-| Cor das bolinhas de vida preenchidas | `src/config.py` | `COR_VIDA` |
-| Cor das bolinhas de vida perdidas | `src/config.py` | `COR_VIDA_VAZIA` |
-| Cores possíveis dos itens | `src/config.py` | `CORES_ITENS` |
-| Posição, raio e espaçamento das vidas | `src/views/hud_view.py` | `raio`, `espacamento`, `primeiro_centro_x`, `centro_y` |
-| Tamanho da fonte da pontuação | `src/views/hud_view.py` | `HudView.__init__`, `pygame.font.Font(None, 46)` |
-| Formato, tamanho e posição dos botões do menu | `src/views/screens_view.py` | `botao_iniciar`, `botao_regras`, `botao_voltar` |
-| Cores dos botões | `src/views/screens_view.py` | método `_botao` |
-| Tamanho das fontes das telas | `src/views/screens_view.py` | `fonte_titulo`, `fonte`, `fonte_pequena` |
-| Aparência do cenário e linha do chão | `src/views/game_view.py` | método `_desenhar_cenario` |
+| Janela, taxa de quadros e título | `src/config.py` | `LARGURA`, `ALTURA`, `FPS`, `TITULO` |
+| Altura do chão e faixa preta | `src/config.py` | `CHAO_Y`, `ALTURA_FAIXA_INFERIOR` |
+| Tamanho e velocidade das lixeiras | `src/config.py` | `LARGURA_JOGADOR`, `ALTURA_JOGADOR`, `VELOCIDADE_JOGADOR` |
+| Suavização, velocidade e regiões da câmera | `src/config.py` | `SUAVIZACAO_ALPHA`, `VELOCIDADE_JOGADOR_CAMERA`, `ZONA_CAMERA_MIN`, `ZONA_CAMERA_MAX`, `MARGEM_CENTRAL` |
+| Posição inicial e bloqueio entre lixeiras | `src/models/game_model.py` | `mover_jogadores` |
+| Quatro faixas invisíveis | `src/config.py`, `src/models/particoes.py` | `NUM_PARTICOES`, `particao_x` |
+| Cenário, faixa e imagens | `src/views/game_view.py` | `_desenhar_cenario`, `desenhar_item` |
 
-As cores usam o formato RGB: `(vermelho, verde, azul)`, com cada canal entre `0` e `255`.
+`ALTURA_FAIXA_INFERIOR = 120` define a faixa preta vazia. O chão é calculado por `CHAO_Y = ALTURA - ALTURA_FAIXA_INFERIOR`, atualmente y=480. As lixeiras têm 112 × 112 pixels e ficam em y=368; só o centro horizontal varia. P1 começa na faixa 2 e alcança 1–3. P2 começa na faixa 3 e alcança 2–4. Cada faixa ocupa 200 pixels; as faixas 2 e 3 são compartilhadas. A distância mínima entre os centros é 112 pixels, sem cruzamento.
 
-## Modo de jogadores e entrada
+## Seleção de entrada e calibração
 
-| O que alterar | Arquivo | Variável ou função |
+Edite `USAR_CAMERA` em `src/config.py`, salve e reinicie o programa. `True` cria uma entrada de câmera para duas pessoas; `False` cria a entrada de teclado sem importar ou inicializar a câmera. A variável é o único seletor do modo. Não há modo solo, argumento de quantidade de jogadores ou fallback automático.
+
+| Ação | Câmera | Teclado |
 |---|---|---|
-| Jogar com uma ou duas pessoas | `main.py` | `NUM_JOGADORES = 1` ou `NUM_JOGADORES = 2` |
-| Usar webcam ou teclado | `main.py` | `USAR_CAMERA = True` ou `USAR_CAMERA = False` |
-| Número de jogadores detectados | `src/controllers/input/camera_input.py` | `CameraInput(num_jogadores)` |
-| Formatos de item que aparecem em cada modo | `src/models/item_spawner.py` | método `ItemSpawner.update` |
-| Índice da webcam | `src/config.py` | `CAMERA_INDICE` |
-| Resolução de captura | `src/config.py` | `CAMERA_LARGURA`, `CAMERA_ALTURA` |
-| Limites laterais usados para mapear o corpo | `src/config.py` | `ZONA_CAMERA_MIN`, `ZONA_CAMERA_MAX` |
-| Suavização do movimento (`1` responde imediatamente) | `src/config.py` | `SUAVIZACAO_ALPHA` |
-| Velocidade máxima do jogador na câmera | `src/config.py` | `VELOCIDADE_JOGADOR_CAMERA` |
-| Visibilidade mínima dos dois quadris para controlar | `src/config.py` | `CONFIANCA_QUADRIS` |
-| Confiança de detecção/rastreamento do MediaPipe | `src/config.py` | `CONFIANCA_POSE` |
-| Tempo de detecção para calibrar/retomar | `src/config.py` | `TEMPO_ESTABILIDADE` |
-| Margem de cada lado da linha central | `src/config.py` | `MARGEM_CENTRAL` |
-| Margem para declarar cruzamento | `src/config.py` | `MARGEM_CRUZAMENTO` |
-| Quadros sem detecção tolerados | `src/config.py` | `TOLERANCIA_FRAMES` |
-| Leituras falhas consecutivas antes do fallback | `src/config.py` | `CAMERA_MAX_LEITURAS_FALHAS` |
-| Prazo para receber o primeiro quadro (segundos) | `src/config.py` | `CAMERA_TIMEOUT_INICIAL` |
-| Idade máxima do quadro antes do fallback (segundos) | `src/config.py` | `CAMERA_TIMEOUT_QUADRO` |
-| Intervalo dos resumos de diagnóstico (segundos) | `src/config.py` | `INTERVALO_LOG_CAMERA` |
-| Peso de posição, tamanho e cor ao manter identidade | `src/config.py` | `PESO_POSICAO`, `PESO_TAMANHO`, `PESO_COR` |
-| Complexidade da detecção corporal (aumente para priorizar corpo inteiro) | `src/config.py` | `POSE_COMPLEXITY` |
-| Confiança mínima de pose e visibilidade do corpo completo | `src/config.py` | `CONFIANCA_POSE`, `CONFIANCA_CORPO_COMPLETO` |
-| Título da janela independente da webcam | `src/config.py` | `CAMERA_JANELA_NOME` |
+| P1 move a lixeira | Movimento lateral na metade esquerda | A / D |
+| P2 move a lixeira | Movimento lateral na metade direita | ← / → |
+| Iniciar ou reiniciar | Agachamento simultâneo por 0,6 s | Espaço |
+| Abrir informações, apenas no menu ou resultado | Pulo de qualquer jogador | X |
+| Fechar informações | Novo pulo, ESC ou Voltar | X, ESC ou Voltar |
 
-No modo de um jogador, P1 é o único personagem e o gerador cria apenas círculos. No modo de dois jogadores, P1 fica à esquerda na calibração e pega círculos; P2 fica à direita e pega quadrados.
+`TEMPO_ESTABILIDADE` define a duração mínima da calibração. `AMOSTRAS_CALIBRACAO` e `OSCILACAO_CALIBRACAO` exigem amostras recentes e quadris estáveis em pé. `LIMIAR_AGACHAMENTO = 0.05` segue a descida normalizada do quadril do HerPules. `CONFIANCA_QUADRIS` filtra landmarks pouco visíveis; `CONFIANCA_GESTOS` define a confiança mínima para gestos. `TEMPO_CONFIRMACAO_GESTO = 0.6` confirma o agachamento conjunto em quadros novos.
 
-É possível sobrescrever os padrões de `main.py` com `--input camera|teclado`
-e `--jogadores 1|2`. Logs são configurados em `src/logging_config.py`:
-`--log-level DEBUG` detalha cada quadro, e `--log-file catch-duo.log` grava a
-sessão além de mostrar no terminal. Em INFO, os resumos seguem
-`INTERVALO_LOG_CAMERA`, e transições/erros aparecem imediatamente.
+O pulo usa referências individuais de quadris e tornozelos, com `LIMIAR_PULO = 0.06` e `LIMIAR_PES_PULO = 0.04`. `VELOCIDADE_MIN_SUBIDA` é medida por segundo para funcionar com taxas diferentes de captura. `COOLDOWN_PULO = 0.5` e o retorno ao chão evitam múltiplos comandos no mesmo salto, inclusive quando a dupla pula quase ao mesmo tempo. Quadros repetidos ou separados por mais de `INTERVALO_MAX_AMOSTRAS_PULO` não produzem pulos. Se os pés só entrarem no enquadramento depois, fiquem em pé durante 30 novas amostras para calibrá-los. Braços em X não acionam mais o menu.
 
-Ausência de pose com quadros novos exige reposicionamento. Falha de abertura,
-exceção, fechamento da janela ou timeout de quadros ativa o teclado. A calibração
-aceita os dois quadris visíveis dentro da imagem; cabeça e pés não bloqueiam o
-início. Pequenas falhas de detecção respeitam `TOLERANCIA_FRAMES`.
+`TEMPO_RECUPERACAO_POSE = 0.5` permite recuperar uma perda breve sem repetir a calibração, desde que os jogadores sejam associados com segurança e retornem em pé aos seus lados. Durante a perda, os alvos ausentes ficam neutros; referências antigas nunca simulam um pulo.
 
-## Arquivos da câmera
+A câmera processa duas regiões independentes. `src/vision/player_tracker.py` mantém as referências e associações P1/P2. Se perder os dois alvos ou não puder garantir suas identidades, neutraliza os controles e registra o estado no log e na janela da câmera; não pausa a partida e não troca as identidades. Se um único alvo ainda puder ser associado com segurança, apenas aquela lixeira continua recebendo movimento. Falha definitiva segue a mesma regra e não ativa o teclado. Fechar a janela principal libera os recursos.
 
-| Função | Arquivo | O que ajustar |
+Outros parâmetros da captura estão em `src/config.py`: `CAMERA_INDICE`, `CAMERA_LARGURA`, `CAMERA_ALTURA`, `CAMERA_MAX_LEITURAS_FALHAS`, `CAMERA_TIMEOUT_INICIAL`, `CAMERA_TIMEOUT_QUADRO` e `INTERVALO_LOG_CAMERA`. `scripts/testar_camera.py` ajuda a conferir o enquadramento dos quadris e a divisão da câmera.
+
+### Desempenho da câmera
+
+| Parâmetro | Padrão | Efeito |
 |---|---|---|
-| Capturar e espelhar quadros em segundo plano | `src/vision/camera_worker.py` | `CameraWorker.run` |
-| Configurar a detecção MediaPipe Solutions | `src/vision/pose_detector.py` | `PoseDetector._criar_pose` |
-| Desenhar a pose completa e extrair posição dos quadris | `src/vision/pose_detector.py` | `detectar_e_desenhar`, `_extrair_pessoa` |
-| Atribuir identidade, detectar cruzamento e ausência | `src/vision/player_tracker.py` | `PlayerTracker.atualizar`, `_associar_dupla`, `_tentar_calibracao` |
-| Suavizar e mapear posição da câmera para pixels | `src/vision/mapeamento.py` | `cx_para_jogo`, `SuavizadorEMA.aplicar` |
-| Traduzir resultados da câmera em alvos dos jogadores | `src/controllers/input/camera_input.py` | `CameraInput.ler` |
-| Atualizar e fechar a janela OpenCV da câmera | `src/controllers/input/camera_input.py` | `_atualizar_janela`, `_destruir_janela` |
-| Exibir instruções de calibração e reposicionamento | `src/views/screens_view.py` | `desenhar_calibracao`, `desenhar_reposicionar` |
-| Aplicar entrada e transições de estado | `src/controllers/game_controller.py` | `_aplicar_entrada` |
+| `POSE_COMPLEXITY` | `0` | Modelo Lite; `1` usa Full, com maior custo de inferência |
+| `CAMERA_LARGURA`, `CAMERA_ALTURA` | `640`, `480` | Resolução solicitada ao driver |
+| `CAMERA_DESENHAR_LANDMARKS` | `False` | Prévia recente sem esqueleto; `True` mostra o frame processado com landmarks |
+| `SUAVIZACAO_ALPHA` | `0.7` | Maior peso para a posição recente; reduzir suaviza mais, mas acrescenta atraso |
+| `CAMERA_MAX_IDADE_POSE` | `0.25` s | Neutraliza comandos cuja imagem ficou antiga; recupera ao receber uma pose recente |
+| `INTERVALO_LOG_CAMERA` | `2.0` s | Intervalo dos logs de FPS de captura/inferência, duração e idade da pose |
 
-O MediaPipe Solutions não precisa de arquivo de modelo separado. Com dois jogadores, `PoseDetector.detectar_e_desenhar` divide a imagem ao meio e processa cada região com uma instância independente. A janela da câmera é separada da janela Pygame e mostra o esqueleto completo. O controle lateral usa o ponto médio dos quadris; a detecção dos quadris é suficiente para calibrar e jogar, enquanto enquadrar o corpo inteiro ajuda o MediaPipe a desenhar a pose. A calibração aguarda cerca de um segundo de detecção válida sem exigir que a pessoa fique imóvel. Para conferir o enquadramento sem iniciar a partida, rode `python -m scripts.testar_camera` e pressione `Q` para sair.
+A captura e a inferência têm threads separadas. O buffer do aplicativo guarda apenas o frame mais recente, descartando os intermediários quando a detecção não acompanha a câmera. `CAP_PROP_BUFFERSIZE = 1` também é solicitado, mas depende do driver. O modelo Lite pode exigir um download automático do MediaPipe no primeiro uso em um ambiente novo. A prévia mostra a duração da inferência e a idade da pose; os resultados medidos e suas limitações estão em [DESEMPENHO.md](DESEMPENHO.md).
 
-## Como estender uma função
+## Classes de lixeiras e resíduos
 
-1. **Entrada:** implemente `ler()` e `fechar()` em uma classe baseada em `InputSource`, retornando `EntradaJogadores` em `src/controllers/input/input_source.py`.
-2. **Visão:** coloque a detecção e o rastreamento em `src/vision/`; mantenha esses módulos sem imports de Pygame. Use `PessoaDetectada` e `EstadoJogadores` para passar dados.
-3. **Regras:** altere estado e comportamento em `src/models/`. A View deve apenas desenhar o resultado.
-4. **Interface:** altere as telas em `src/views/`. Para novos estados, ligue a transição no Model, o comando no Controller e a apresentação na View.
-5. **Seleção de jogadores:** `NUM_JOGADORES` em `main.py` é passado para a fonte de entrada e para `GameModel`; preserve essa propagação ao criar outros modos.
+Os arquivos `papel.py`, `plastico.py`, `vidro.py`, `metal.py` e `organico.py` em `src/models/lixeiras/` contêm as classes de cada lixeira. Cada classe define:
 
-As bibliotecas estão fixadas em `requirements.txt`. A detecção usa `mediapipe.solutions.pose.Pose.process`, sem Tasks API, sem serviço externo e sem baixar um arquivo de modelo. O pacote OpenCV contrib fornece o módulo `cv2` usado pelo projeto e satisfaz a dependência do MediaPipe. A versão MediaPipe fixada publica wheels até Python 3.12; use Python 3.12 ou anterior para instalar as dependências da câmera.
+| Atributo | Conteúdo |
+|---|---|
+| `ID`, `NOME` | Identidade da categoria e nome usado na tela de regras |
+| `IMAGEM` | Caminho da imagem da lixeira dentro do projeto |
+| `ITENS` | Lista de resíduos da classe, com quantidade livre e pelo menos um item |
 
-## Jogadores e itens
+Cada `Residuo` em `ITENS` define `id`, `nome`, `imagem` e `tamanho`. Use uma nova subclasse para acrescentar uma categoria e associe a ela seus próprios resíduos. `LIXEIRAS` contém as cinco classes elegíveis ao sorteio; o sorteio escolhe duas classes distintas apenas depois da confirmação da dupla. `src/models/item_spawner.py` consulta diretamente as classes sorteadas, sem criar gerador individual por lixeira.
 
-| O que alterar | Arquivo | Variável |
-|---|---|---|
-| Largura dos triângulos | `src/config.py` | `LARGURA_JOGADOR` |
-| Altura dos triângulos | `src/config.py` | `ALTURA_JOGADOR` |
-| Velocidade horizontal dos jogadores | `src/config.py` | `VELOCIDADE_JOGADOR` |
-| Tamanho dos círculos e quadrados que caem | `src/config.py` | `TAMANHO_ITEM` |
-| Velocidade inicial de queda | `src/config.py` | `VELOCIDADE_QUEDA_INICIAL` |
-| Limite máximo da velocidade de queda | `src/config.py` | `VELOCIDADE_QUEDA_MAXIMA` |
-| Tipo de item que cada jogador captura | `src/models/game_model.py` | `GameModel.reset`, `tipo_alvo` de `p1` e `p2` |
-| Forma visual do jogador | `src/views/game_view.py` | método `desenhar_jogador` |
-| Forma visual dos itens | `src/views/game_view.py` | método `desenhar_item` |
+O tamanho pode ser um inteiro positivo ou `(largura, altura)`, em pixels. Por exemplo, em `metal.py`: `Residuo('metal_lata', 'Lata de conserva', 'imagens/lixo-lata2.png', tamanho=(48, 56))`. A imagem mantém a proporção dentro dessa área, que também é usada na captura. Os nomes e as listas de resíduos aparecem apenas nas regras.
 
-## Pontuação, vidas e dificuldade
+Os tamanhos foram ampliados individualmente: PET de água usa 76 × 76 (imagem diagonal), PET de refrigerante 50 × 84, latinhas 38 × 48, garrafa de vidro 42 × 80 e esmalte 36 × 42. São proporções visuais para o jogo, não uma escala física exata.
 
-| O que alterar | Arquivo | Variável |
-|---|---|---|
-| Pontos por captura correta | `src/config.py` | `PONTOS_ACERTO` |
-| Pontos por captura errada | `src/config.py` | `PONTOS_ERRO` |
-| Limite mínimo da pontuação (`None` permite pontos negativos) | `src/config.py` | `PONTUACAO_MINIMA` |
-| Quantidade de bolinhas de vida/perdas permitidas | `src/config.py` | `MAX_ITENS_PERDIDOS` |
-| Pontuação que encerra a partida por erros | `src/config.py` | `PONTUACAO_LIMITE_INFERIOR` |
-| Intervalo inicial entre itens | `src/config.py` | `INTERVALO_SPAWN_INICIAL` |
-| Menor intervalo permitido entre itens | `src/config.py` | `INTERVALO_SPAWN_MINIMO` |
-| Pontos líquidos para avançar um nível de dificuldade | `src/config.py` | `PONTOS_POR_NIVEL_DIFICULDADE` |
-| Aumento de velocidade por nível | `src/config.py` | `AUMENTO_VELOCIDADE_POR_NIVEL` |
-| Redução do intervalo de spawn por nível | `src/config.py` | `REDUCAO_SPAWN_POR_NIVEL` |
-| Regra de cálculo da velocidade e do intervalo | `src/models/item_spawner.py` | método `ItemSpawner.update` |
+## Classes de fundos e imagens
 
-`MAX_ITENS_PERDIDOS` define a quantidade de vidas. Cada item que chega ao chão remove uma bolinha inteira; o padrão é `3` vidas.
+`src/models/fundos.py` contém `FundoSimples`, `FundoDecorado` e `FundoPraia`. Cada classe define `ID`, `NOME` e o caminho `IMAGEM`. O fundo é escolhido separadamente das lixeiras e só muda ao iniciar uma rodada confirmada.
 
-O nível de dificuldade é calculado pela pontuação compartilhada dividida por `PONTOS_POR_NIVEL_DIFICULDADE`. Cada nível reduz o intervalo entre itens e aumenta a velocidade de queda; o intervalo e a velocidade respeitam os limites mínimo e máximo configurados.
+| Elemento | Exemplo de caminho usado no código |
+|---|---|
+| Lixeira de vidro | `imagens/lixeira-reci-vidro.png` |
+| Pote de vidro | `imagens/pote-vidro.png` |
+| Fundo usado pela classe `FundoSimples` | `imagens/fundo1-simples.png` |
 
-## Regras e controles
+Para substituir uma lixeira, coloque o PNG na pasta `imagens/` e altere o atributo `IMAGEM` de sua classe. Por exemplo, em `LixeiraVidro`, use `IMAGEM = 'imagens/minha-lixeira-de-vidro.png'`. Para substituir um resíduo, altere a imagem e seu tamanho, como `Residuo('vidro_pote', 'Pote de vidro', 'imagens/meu-pote.png', tamanho=(32, 48))`. Para o fundo, altere `IMAGEM` na classe correspondente em `fundos.py`.
 
-| O que alterar | Arquivo | Variável ou trecho |
-|---|---|---|
-| Teclas de movimento no modo teclado | `src/controllers/input/keyboard_input.py` | método `KeyboardInput.ler` |
-| Teclas de iniciar, pausar e reiniciar | `src/controllers/input_controller.py` | método `tratar_evento` |
-| Textos da tela de regras | `src/views/screens_view.py` | método `desenhar_regras` |
-| Textos do menu inicial | `src/views/screens_view.py` | método `desenhar_menu` |
-| Condições de fim de jogo | `src/models/game_model.py` | método `update`, `MAX_ITENS_PERDIDOS` e `PONTUACAO_LIMITE_INFERIOR` |
+Os caminhos são relativos à raiz do projeto, independentemente da pasta usada para executar o jogo. Lixeiras são encaixadas em 112 × 112 com âncora inferior central; cada resíduo usa o tamanho informado na sua definição, com padrão 48 × 48. A captura usa essa área lógica, sem ler os pixels da imagem. Fundos preenchem os 800 × 480 pixels acima da faixa preta. Se um caminho estiver errado ou o arquivo faltar, o jogo informa qual imagem não encontrou.
+
+## Pontos, vidas e dificuldade
+
+| O que ajustar | Parâmetros em `src/config.py` |
+|---|---|
+| Pontos por captura correta/incorreta | `PONTOS_ACERTO`, `PONTOS_ERRO` |
+| Piso opcional da pontuação | `PONTUACAO_MINIMA` |
+| Vidas e fim por pontuação negativa | `MAX_ITENS_PERDIDOS`, `PONTUACAO_LIMITE_INFERIOR` |
+| Velocidade e intervalo iniciais | `VELOCIDADE_QUEDA_INICIAL`, `INTERVALO_SPAWN_INICIAL` |
+| Limites de velocidade e intervalo | `VELOCIDADE_QUEDA_MAXIMA`, `INTERVALO_SPAWN_MINIMO` |
+| Progressão | `PONTOS_POR_NIVEL_DIFICULDADE`, `AUMENTO_VELOCIDADE_POR_NIVEL`, `REDUCAO_SPAWN_POR_NIVEL` |
+| Duração 3, 2, 1 | `TEMPO_CONTAGEM` |
+
+A rodada começa com 80 px/s e um resíduo a cada 4 s. A cada cinco pontos líquidos, os novos resíduos ganham 10 px/s e o intervalo cai 0,15 s, até 420 px/s e 0,32 s. Um primeiro resíduo aparece imediatamente ao terminar a contagem; a partir dele começa o intervalo normal. O item é perdido quando seu topo ultrapassa `CHAO_Y` (atualmente y=480), depois da verificação de captura daquele quadro.
+
+## Arquitetura
+
+| Responsabilidade | Arquivos |
+|---|---|
+| Categorias, movimento, captura e rodada | `src/models/player.py`, `falling_item.py`, `item_spawner.py`, `game_model.py`, `fundos.py` |
+| Pose, identidades, quadris e gestos | `src/vision/pose_detector.py`, `player_tracker.py`, `gestos.py`, `tipos.py` |
+| Seleção e confirmação das entradas | `src/controllers/input/__init__.py`, `camera_input.py`, `keyboard_input.py` |
+| Telas e recursos visuais | `src/views/game_view.py`, `screens_view.py`, `hud_view.py`, `recursos_visuais.py` |
+
+Dependências de câmera: Python 3.12 ou anterior e os pacotes fixados em `requirements.txt`. O modo teclado não precisa iniciar MediaPipe ou webcam.

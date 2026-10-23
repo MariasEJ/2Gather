@@ -8,8 +8,8 @@ class LixeiraPlastico(Lixeira):
     NOME = 'PLÁSTICO'
     IMAGEM = 'imagens/lixeira-rec-plastico.png'
     ITENS = (
-        Residuo('plastico_pet1', 'Garrafa PET Agua', 'imagens/garrafa1.png', tamanho=(32, 32)),
-        Residuo('plastico_pet2', 'Garrafa PET Refrigerante', 'imagens/coquinha.png', tamanho=(32, 32)),
-        Residuo('plastico_frasco', 'Frasco plástico', 'imagens/qboinha.png', tamanho=(32, 32)),
-        Residuo('plastico_cd', 'CD', 'imagens/cd-lixo1.png', tamanho=(32, 32)),
+        Residuo('plastico_pet1', 'Garrafa PET Agua', 'imagens/garrafa1.png', tamanho=(76, 76)),
+        Residuo('plastico_pet2', 'Garrafa PET Refrigerante', 'imagens/coquinha.png', tamanho=(50, 84)),
+        Residuo('plastico_frasco', 'Frasco plástico', 'imagens/qboinha.png', tamanho=(64, 84)),
+        Residuo('plastico_cd', 'CD', 'imagens/cd-lixo1.png', tamanho=(52, 52)),
     )

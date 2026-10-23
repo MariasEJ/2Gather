@@ -25,6 +25,8 @@ class QuadroVisao:
     pessoas: list[PessoaDetectada]
     frame_bgr: object | None
     timestamp_ms: int
+    inferencia_ms: float = 0.0
+    latencia_ms: float = 0.0
 
 
 class StatusJogadores(Enum):

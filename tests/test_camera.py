@@ -74,6 +74,7 @@ class PoseTests(unittest.TestCase):
         pessoa = PoseDetector._extrair_pessoa(pontos, self.frame, 0, 640, 640)
         self.assertEqual(pessoa.cor, (0, 255, 255))
 
+    @patch('src.vision.pose_detector.CAMERA_DESENHAR_LANDMARKS', True)
     def test_two_regions_are_processed_and_drawn(self):
         detector = PoseDetector.__new__(PoseDetector)
         detector._ultimo_log = float("-inf")
@@ -104,6 +105,7 @@ class CameraInputTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         self.worker.erro = None
         self.worker.ultimo.return_value = None
+        self.worker.ultimo_frame.return_value = None
         self.entrada = CameraInput()
         self.addCleanup(self.entrada.fechar)
 
@@ -200,6 +202,27 @@ class CameraInputTests(unittest.TestCase):
         self.assertIsNone(entrada.alvo_p1)
         self.assertIn('quadros novos', self.entrada.erro)
 
+    def test_old_pose_is_neutralized_before_camera_timeout(self):
+        agora = self.calibrar()
+        with patch('src.controllers.input.camera_input.time.monotonic', return_value=agora + 0.5):
+            entrada = self.entrada.ler()
+        self.assertIsNone(entrada.alvo_p1)
+        self.assertFalse(entrada.prontos or entrada.pulo_confirmado)
+        self.assertIsNone(self.entrada.erro)
+        self.assertTrue(self.ler_quadro(agora + 0.6).prontos)
+
+    def test_preview_updates_while_pose_sample_is_unchanged(self):
+        agora = self.calibrar()
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        self.worker.ultimo_frame.return_value = (1000, frame)
+        cv2.imshow.reset_mock()
+        self.assertFalse(self.entrada.ler().amostra_nova)
+        self.entrada.ler()
+        self.assertEqual(cv2.imshow.call_count, 1)
+        self.worker.ultimo_frame.return_value = (1040, frame)
+        self.assertFalse(self.entrada.ler().amostra_nova)
+        self.assertEqual(cv2.imshow.call_count, 2)
+
     def test_initialization_timeout(self):
         self.entrada._inicio -= CAMERA_TIMEOUT_INICIAL + 1
         self.assertFalse(self.entrada.ler().prontos)
@@ -261,10 +284,12 @@ class WorkerTests(unittest.TestCase):
     def test_camera_open_failure_is_reported(self):
         cv = Mock()
         cv.VideoCapture.return_value.isOpened.return_value = False
-        worker = CameraWorker(cv)
+        criar_detector = Mock()
+        worker = CameraWorker(cv, criar_detector)
         with self.assertLogs("src.vision.camera_worker", level="ERROR"):
             worker.start()
             worker.join(timeout=5)
         self.assertFalse(worker.is_alive())
         self.assertIn("índice", worker.erro)
         cv.VideoCapture.return_value.release.assert_called_once()
+        criar_detector.assert_not_called()

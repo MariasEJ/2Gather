@@ -50,12 +50,12 @@ class ClassesLixeirasTests(unittest.TestCase):
                     encontrados.add(item.item_id)
                     self.assertIn(item.categoria_id, (par[0].ID, par[1].ID))
                     dono = 0 if item.categoria_id == par[0].ID else 1
-                    self.assertIn(item.particao, range(dono, dono + 5))
+                    self.assertIn(item.particao, range(dono, dono + 3))
                     self.assertEqual(item.x, centro_particao(item.particao))
                     faixas[item.categoria_id].add(item.particao)
                 self.assertEqual(encontrados, {item.id for cls in par for item in cls.ITENS})
-                self.assertEqual(faixas[par[0].ID], set(range(5)))
-                self.assertEqual(faixas[par[1].ID], set(range(1, 6)))
+                self.assertEqual(faixas[par[0].ID], set(range(3)))
+                self.assertEqual(faixas[par[1].ID], set(range(1, 4)))
 
     def test_spawner_rejects_duplicate_or_unknown_classes(self):
         for lixeiras in ((LIXEIRAS[0], LIXEIRAS[0]), (LIXEIRAS[0], str), (LIXEIRAS[0],)):
@@ -99,11 +99,12 @@ class ClassesLixeirasTests(unittest.TestCase):
             self.assertEqual(model.numero_contagem, numero)
             self.assertEqual(model.spawner.timer, 0)
             self.assertEqual(model.itens, [])
-            self.assertEqual(model.p1.x, centro_particao(2))
+            self.assertEqual(model.p1.x, centro_particao(1))
+            self.assertEqual(model.p2.x, centro_particao(2))
             model.update(1)
         self.assertEqual(model.estado, model.JOGANDO)
         self.assertEqual(len(model.itens), 1)
-        self.assertEqual(model.itens[0].y, -28)
+        self.assertEqual(model.itens[0].y, -model.itens[0].altura)
         self.assertEqual(model.spawner.timer, 0)
         primeiro = model.itens[0]
         model.update(3.99)

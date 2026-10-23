@@ -39,8 +39,8 @@ class GameModel:
         self.reset()
 
     def reset(self):
-        self.p1 = Lixeira('P1', centro_particao(2))
-        self.p2 = Lixeira('P2', centro_particao(3))
+        self.p1 = Lixeira('P1', centro_particao(NUM_PARTICOES // 2 - 1))
+        self.p2 = Lixeira('P2', centro_particao(NUM_PARTICOES // 2))
         self.itens = []
         self.spawner = None
         self.fundo = None
@@ -55,7 +55,8 @@ class GameModel:
             return
         categorias = self.rng.sample(LIXEIRAS, 2)
         self.reset()
-        self.p1, self.p2 = categorias[0]('P1', centro_particao(2)), categorias[1]('P2', centro_particao(3))
+        self.p1 = categorias[0]('P1', centro_particao(NUM_PARTICOES // 2 - 1))
+        self.p2 = categorias[1]('P2', centro_particao(NUM_PARTICOES // 2))
         self.fundo = self.rng_fundo.choice(FUNDOS)
         self.spawner = ItemSpawner(categorias, self.rng)
         self.tempo_contagem = TEMPO_CONTAGEM

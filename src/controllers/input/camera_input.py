@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from src.config import (
     CAMERA_JANELA_NOME, CAMERA_TIMEOUT_INICIAL, CAMERA_TIMEOUT_QUADRO,
-    COOLDOWN_PULO, INTERVALO_LOG_CAMERA,
+    COOLDOWN_PULO, INTERVALO_LOG_CAMERA, CAMERA_DESENHAR_LANDMARKS, CAMERA_MAX_IDADE_POSE,
 )
 from src.controllers.input.input_source import ConfirmadorGestos, EntradaJogadores, InputSource
 from src.vision.camera_worker import CameraWorker
@@ -28,6 +28,7 @@ class CameraInput(InputSource):
         self.suav_p1, self.suav_p2 = SuavizadorEMA(), SuavizadorEMA()
         self.confirmador = ConfirmadorGestos()
         self._ultimo_timestamp = self._ultima_entrada = None
+        self._timestamp_janela = None
         self._ultimo_pulo = float('-inf')
         try:
             import cv2
@@ -74,6 +75,8 @@ class CameraInput(InputSource):
                                 'Câmera indisponível. Reinicie o programa para reconectar.')
         if quadro is None:
             return self._neutra(None, StatusJogadores.REPOSICIONANDO, 'Aguardando a câmera...')
+        if agora - quadro.timestamp_ms / 1000 > CAMERA_MAX_IDADE_POSE:
+            return self._neutra(quadro, StatusJogadores.REPOSICIONANDO, 'Aguardando uma pose recente...')
         if self._ultimo_timestamp is not None and quadro.timestamp_ms <= self._ultimo_timestamp:
             return replace(self._ultima_entrada, amostra_nova=False,
                            agachamento_confirmado=False, x_confirmado=False, pulo_confirmado=False)
@@ -131,9 +134,16 @@ class CameraInput(InputSource):
         if not self._janela_aberta:
             return
         try:
-            if quadro is not None and quadro.frame_bgr is not None:
-                frame = quadro.frame_bgr.copy()
-                self.cv2.putText(frame, f'Controles: {len(quadro.pessoas)}/2 | Q: fechar camera',
+            previa = self.worker.ultimo_frame() if self.worker and not CAMERA_DESENHAR_LANDMARKS else None
+            if previa is None and quadro is not None and quadro.frame_bgr is not None:
+                previa = (quadro.timestamp_ms, quadro.frame_bgr)
+            if previa is not None and previa[0] != self._timestamp_janela:
+                self._timestamp_janela = previa[0]
+                frame = previa[1].copy()
+                meio = frame.shape[1] // 2
+                self.cv2.line(frame, (meio, 0), (meio, frame.shape[0]), (180, 180, 180), 2)
+                pessoas = len(quadro.pessoas) if quadro else 0
+                self.cv2.putText(frame, f'Controles: {pessoas}/2 | Q: fechar camera',
                                  (12, frame.shape[0] - 18), self.cv2.FONT_HERSHEY_SIMPLEX,
                                  0.6, (255, 255, 255), 2, self.cv2.LINE_AA)
                 if self._ultima_entrada is not None and self._ultima_entrada.prontos:
@@ -146,6 +156,11 @@ class CameraInput(InputSource):
                 self.cv2.putText(frame, instrucao,
                                  (12, 55), self.cv2.FONT_HERSHEY_SIMPLEX,
                                  0.55, (0, 180, 255), 2, self.cv2.LINE_AA)
+                if quadro is not None:
+                    idade = max(0, time.monotonic() * 1000 - quadro.timestamp_ms)
+                    self.cv2.putText(frame, f'Inferencia: {quadro.inferencia_ms:.0f} ms | Idade pose: {idade:.0f} ms',
+                                     (12, frame.shape[0] - 44), self.cv2.FONT_HERSHEY_SIMPLEX,
+                                     0.5, (255, 255, 255), 1, self.cv2.LINE_AA)
                 self.cv2.imshow(CAMERA_JANELA_NOME, frame)
             tecla = self.cv2.waitKey(1) & 0xFF
             visivel = self.cv2.getWindowProperty(CAMERA_JANELA_NOME, self.cv2.WND_PROP_VISIBLE)

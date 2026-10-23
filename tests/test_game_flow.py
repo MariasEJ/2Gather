@@ -60,7 +60,7 @@ class GameFlowTests(unittest.TestCase):
         self.model.mostrar_regras()
         self.model.update(1)
         self.assertEqual(self.model.estado, self.model.CONTAGEM)
-        self.assertEqual((self.model.p1.particao, self.model.p2.particao), (2, 3))
+        self.assertEqual((self.model.p1.particao, self.model.p2.particao), (1, 2))
         self.assertFalse(self.model.itens)
 
     def test_invalid_tracking_does_not_stop_countdown_or_game(self):
@@ -102,7 +102,7 @@ class GameFlowTests(unittest.TestCase):
         self.model.update(0.1)
         self.assertEqual(self.model.estado, self.model.JOGANDO)
         self.assertEqual((self.model.p1.y, self.model.p1.altura), (CHAO_Y - ALTURA_JOGADOR, ALTURA_JOGADOR))
-        self.assertGreater(self.model.itens[0].y, -28)
+        self.assertGreater(self.model.itens[0].y, -self.model.itens[0].altura)
 
     def test_restart_requires_release_in_results_and_new_confirmed_gesture(self):
         self.model.iniciar()

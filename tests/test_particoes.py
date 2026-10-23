@@ -8,12 +8,14 @@ from src.vision.mapeamento import cx_dupla_para_jogo
 
 class ParticoesTests(unittest.TestCase):
     def test_edges_initial_positions_and_fixed_dimensions(self):
-        for i in range(6):
-            self.assertEqual(particao_x(i * LARGURA / 6), i)
+        for i in range(4):
+            self.assertEqual(particao_x(i * LARGURA / 4), i)
             self.assertEqual(particao_x(centro_particao(i)), i)
-        self.assertEqual(particao_x(LARGURA), 5)
+        self.assertEqual(particao_x(LARGURA), 3)
         model = GameModel()
-        self.assertEqual((model.p1.particao, model.p2.particao), (2, 3))
+        self.assertEqual((model.p1.particao, model.p2.particao), (1, 2))
+        model.iniciar()
+        self.assertEqual((model.p1.particao, model.p2.particao), (1, 2))
         for jogador in model.jogadores:
             self.assertEqual((jogador.y, jogador.largura, jogador.altura),
                              (CHAO_Y - ALTURA_JOGADOR, LARGURA_JOGADOR, ALTURA_JOGADOR))
@@ -24,24 +26,24 @@ class ParticoesTests(unittest.TestCase):
             model.p1.alvo_x, model.p2.alvo_x = alvos
             for _ in range(60):
                 model.mover_jogadores(0.1)
-                self.assertLess(model.p1.particao, 5)
+                self.assertLess(model.p1.particao, 3)
                 self.assertGreater(model.p2.particao, 0)
                 self.assertGreaterEqual(model.p2.x - model.p1.x, LARGURA_JOGADOR - 1e-6)
-                self.assertGreaterEqual(model.p1.x, 48)
-                self.assertLessEqual(model.p2.x, 752)
+                self.assertGreaterEqual(model.p1.x, LARGURA_JOGADOR / 2)
+                self.assertLessEqual(model.p2.x, LARGURA - LARGURA_JOGADOR / 2)
                 for jogador in model.jogadores:
                     self.assertEqual((jogador.y, jogador.largura, jogador.altura),
                                      (CHAO_Y - ALTURA_JOGADOR, LARGURA_JOGADOR, ALTURA_JOGADOR))
 
     def test_opposing_players_stop(self):
         model = GameModel()
-        model.p1.x, model.p2.x = 300, 396
+        model.p1.x, model.p2.x = 300, 300 + LARGURA_JOGADOR
         model.p1.alvo_x, model.p2.alvo_x = 500, 100
         model.mover_jogadores(0.1)
-        self.assertEqual((model.p1.x, model.p2.x), (300, 396))
+        self.assertEqual((model.p1.x, model.p2.x), (300, 300 + LARGURA_JOGADOR))
 
-    def test_camera_half_can_reach_all_five_allowed_lanes(self):
-        for jogador, minimo, maximo, faixas in ((1, 0.1, 0.45, range(5)), (2, 0.55, 0.9, range(1, 6))):
+    def test_camera_half_can_reach_all_three_allowed_lanes(self):
+        for jogador, minimo, maximo, faixas in ((1, 0.1, 0.45, range(3)), (2, 0.55, 0.9, range(1, 4))):
             atingidas = {particao_x(cx_dupla_para_jogo(minimo + (maximo - minimo) * i / 100, jogador))
                         for i in range(101)}
             self.assertEqual(atingidas, set(faixas))

@@ -9,6 +9,7 @@ import mediapipe as mp
 
 from src.config import (
     CONFIANCA_CORPO_COMPLETO,
+    CAMERA_DESENHAR_LANDMARKS,
     CONFIANCA_GESTOS,
     CONFIANCA_POSE,
     CONFIANCA_QUADRIS,
@@ -72,13 +73,14 @@ class PoseDetector:
                 continue
 
             # Desenha todos os landmarks e conexões (cabeça, braços, tronco e pernas).
-            regiao_anotada = frame_anotado[:, x1:x2].copy()
-            self.mp_drawing.draw_landmarks(
-                regiao_anotada,
-                resultado.pose_landmarks,
-                self.mp_pose.POSE_CONNECTIONS,
-            )
-            frame_anotado[:, x1:x2] = regiao_anotada
+            if CAMERA_DESENHAR_LANDMARKS:
+                regiao_anotada = frame_anotado[:, x1:x2].copy()
+                self.mp_drawing.draw_landmarks(
+                    regiao_anotada,
+                    resultado.pose_landmarks,
+                    self.mp_pose.POSE_CONNECTIONS,
+                )
+                frame_anotado[:, x1:x2] = regiao_anotada
             pessoa = self._extrair_pessoa(
                 resultado.pose_landmarks.landmark,
                 frame_bgr,

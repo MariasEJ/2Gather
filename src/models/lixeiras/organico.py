@@ -8,10 +8,10 @@ class LixeiraOrganico(Lixeira):
     NOME = 'ORGÂNICO'
     IMAGEM = 'imagens/lixeira-organico.png'
     ITENS = (
-        Residuo('organico_banana', 'Casca de banana', 'imagens/casca-banana1.png', tamanho=(32, 32)),
-        Residuo('organico_maca', 'Resto de maçã', 'imagens/lixo-maca1.png', tamanho=(32, 32)),
-        Residuo('organico_comida', 'Resto de comida', 'imagens/lixo-hamburg.png', tamanho=(32, 32)),
-        Residuo('organico_coquinho', 'coquinho', 'imagens/coquinho.png', tamanho=(32, 32)),
-        Residuo('organico_patoleh', 'patoleh', 'imagens/patoleh.png', tamanho=(32, 32)),
-        Residuo('organico_picoleh', 'picoleh', 'imagens/picoleh.png', tamanho=(32, 32)),
+        Residuo('organico_banana', 'Casca de banana', 'imagens/casca-banana1.png', tamanho=(64, 44)),
+        Residuo('organico_maca', 'Resto de maçã', 'imagens/lixo-maca1.png', tamanho=(44, 48)),
+        Residuo('organico_comida', 'Resto de comida', 'imagens/lixo-hamburg.png', tamanho=(64, 48)),
+        Residuo('organico_coquinho', 'coquinho', 'imagens/coquinho.png', tamanho=(44, 44)),
+        Residuo('organico_patoleh', 'patoleh', 'imagens/patoleh.png', tamanho=(40, 64)),
+        Residuo('organico_picoleh', 'picoleh', 'imagens/picoleh.png', tamanho=(40, 64)),
     )

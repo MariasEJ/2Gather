@@ -3,7 +3,7 @@
 from src.config import (
     AUMENTO_VELOCIDADE_POR_NIVEL, INTERVALO_SPAWN_INICIAL,
     INTERVALO_SPAWN_MINIMO, PONTOS_POR_NIVEL_DIFICULDADE,
-    REDUCAO_SPAWN_POR_NIVEL, VELOCIDADE_QUEDA_INICIAL, VELOCIDADE_QUEDA_MAXIMA,
+    REDUCAO_SPAWN_POR_NIVEL, VELOCIDADE_QUEDA_INICIAL, VELOCIDADE_QUEDA_MAXIMA, NUM_PARTICOES,
 )
 from src.models.lixeiras import LIXEIRAS
 from src.models.falling_item import FallingItem
@@ -26,7 +26,7 @@ class ItemSpawner:
         categoria = self.rng.choice(self.categorias)
         residuo = self.rng.choice(categoria.ITENS)
         dono = self.categorias.index(categoria)
-        faixa = self.rng.randrange(dono, dono + 5)
+        faixa = self.rng.randrange(dono, dono + NUM_PARTICOES - 1)
         return FallingItem(centro_particao(faixa), residuo, categoria.ID, self.velocidade_queda)
 
     def update(self, dt, pontuacao):

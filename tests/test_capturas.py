@@ -81,7 +81,8 @@ class CapturasTests(unittest.TestCase):
             with self.subTest(item=item_id):
                 model = partida()
                 model.p1.x = 280
-                item = item_no_modelo(model, item_id, 346, 80)
+                item = item_no_modelo(model, item_id, velocidade=80)
+                item.x = model.p1.x + model.p1.largura / 2 + item.largura / 2 + 1
                 item.y = item.y_anterior = model.p1.y
                 self.assertFalse(item.toca_jogador(model.p1))
                 item.x = model.p1.x
@@ -124,7 +125,7 @@ class CapturasTests(unittest.TestCase):
     def test_shared_lane_prioritizes_correct_category(self):
         model = partida()
         model.p1.x, model.p2.x = 280, 376
-        item = item_no_modelo(model, 'plastico_pet', 328)
+        item = item_no_modelo(model, 'plastico_pet1', 328)
         item.y = model.p1.y
         model.itens = [item]
         model.update(0)
@@ -135,7 +136,7 @@ class CapturasTests(unittest.TestCase):
         for motivo in ('perdas', 'erros'):
             model = partida()
             for _ in range(3 if motivo == 'perdas' else 5):
-                item = item_no_modelo(model, 'plastico_pet', model.p1.x, 0)
+                item = item_no_modelo(model, 'plastico_pet1', model.p1.x, 0)
                 item.y = CHAO_Y + 1 if motivo == 'perdas' else model.p1.y
                 model.itens = [item]
                 model.update(0)

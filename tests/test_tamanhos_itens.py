@@ -6,9 +6,32 @@ from unittest.mock import patch
 from src.models.falling_item import FallingItem
 from src.models.item_spawner import ItemSpawner
 from src.models.lixeiras import LixeiraMetal, LixeiraVidro, Residuo
+from src.models.player import LIXEIRAS
 
 
 class TamanhosItensTests(unittest.TestCase):
+    def test_catalog_items_are_larger_than_previous_32_pixel_boxes(self):
+        for classe in LIXEIRAS:
+            for residuo in classe.ITENS:
+                with self.subTest(item=residuo.id):
+                    largura, altura = residuo.dimensoes
+                    self.assertGreater(largura, 32)
+                    self.assertGreater(altura, 32)
+
+    def test_bottles_are_larger_than_cans_and_nail_polish(self):
+        itens = {item.id: item for classe in LIXEIRAS for item in classe.ITENS}
+        for garrafa in ('plastico_pet1', 'plastico_pet2'):
+            for lata in ('metal_refri', 'metal_latinha'):
+                with self.subTest(garrafa=garrafa, lata=lata):
+                    largura, altura = itens[garrafa].dimensoes
+                    largura_lata, altura_lata = itens[lata].dimensoes
+                    self.assertGreater(altura, altura_lata)
+                    self.assertGreater(largura * altura, largura_lata * altura_lata)
+        largura, altura = itens['vidro_garrafa'].dimensoes
+        largura_esmalte, altura_esmalte = itens['vidro_esmalte'].dimensoes
+        self.assertGreater(altura, altura_esmalte)
+        self.assertGreater(largura * altura, largura_esmalte * altura_esmalte)
+
     def test_spawner_preserves_each_residue_size_and_starts_above_screen(self):
         vidro = replace(LixeiraVidro.ITENS[0], tamanho=(32, 52))
         metal = replace(LixeiraMetal.ITENS[0], tamanho=(48, 20))

@@ -4,7 +4,7 @@ from src.config import LARGURA, NUM_PARTICOES
 
 
 def particao_x(x):
-    """Índice de 0 a 5; a borda interna pertence à faixa da direita."""
+    """Índice de 0 a NUM_PARTICOES-1; a borda pertence à faixa da direita."""
     return max(0, min(NUM_PARTICOES - 1, int(x * NUM_PARTICOES / LARGURA)))
 
 

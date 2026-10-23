@@ -64,7 +64,7 @@ class RenderizacaoTests(unittest.TestCase):
             a = recursos.sprite('imagens/teste.png', (32, 32))
             b = recursos.sprite('imagens/teste.png', (32, 32))
             self.assertIs(a, b)
-            self.assertEqual(a.get_size(), (28, 21))
+            self.assertEqual(a.get_size(), (32, 24))
             self.assertEqual(carregar.call_count, 1)
             tela = pygame.Surface((300, 200))
             retangulo = pygame.Rect(120, 80, 96, 96)
@@ -80,13 +80,43 @@ class RenderizacaoTests(unittest.TestCase):
         recursos = RecursosVisuais()
         for classe in LIXEIRAS:
             with self.subTest(lixeira=classe.ID):
-                self.assertGreater(recursos.sprite(classe.IMAGEM, (96, 96)).get_width(), 0)
+                self.assertGreater(recursos.sprite(classe.IMAGEM, (LARGURA_JOGADOR, ALTURA_JOGADOR)).get_width(), 0)
             for item in classe.ITENS:
                 with self.subTest(item=item.id):
-                    self.assertGreater(recursos.sprite(item.imagem, (32, 32)).get_width(), 0)
+                    self.assertGreater(recursos.sprite(item.imagem, item.dimensoes).get_width(), 0)
         for fundo in FUNDOS:
             with self.subTest(fundo=fundo.ID):
                 self.assertEqual(recursos.fundo(fundo.IMAGEM, (LARGURA, CHAO_Y)).get_size(), (LARGURA, CHAO_Y))
+
+    def test_catalog_sprites_preserve_aspect_ratio_inside_their_sizes(self):
+        recursos = RecursosVisuais()
+        for classe in LIXEIRAS:
+            for item in classe.ITENS:
+                with self.subTest(item=item.id):
+                    original = pygame.image.load(str(recursos.raiz / item.imagem)).convert_alpha()
+                    area_visivel = original.get_bounding_rect(min_alpha=1)
+                    sprite = recursos.sprite(item.imagem, item.dimensoes)
+                    largura, altura = sprite.get_size()
+                    limite_largura, limite_altura = item.dimensoes
+                    self.assertLessEqual(largura, limite_largura)
+                    self.assertLessEqual(altura, limite_altura)
+                    self.assertTrue(largura == limite_largura or altura == limite_altura)
+                    # Cada eixo pode arredondar meio pixel ao preservar a proporção.
+                    erro = abs(largura * area_visivel.height - altura * area_visivel.width)
+                    self.assertLessEqual(erro, (area_visivel.width + area_visivel.height) / 2)
+
+    def test_pet_bottles_look_larger_than_soda_cans(self):
+        recursos = RecursosVisuais()
+        itens = {item.id: item for classe in LIXEIRAS for item in classe.ITENS}
+        for garrafa in ('plastico_pet1', 'plastico_pet2'):
+            for lata in ('metal_refri', 'metal_latinha'):
+                with self.subTest(garrafa=garrafa, lata=lata):
+                    pet, refri = itens[garrafa], itens[lata]
+                    sprite_pet = recursos.sprite(pet.imagem, pet.dimensoes)
+                    sprite_lata = recursos.sprite(refri.imagem, refri.dimensoes)
+                    self.assertGreater(max(sprite_pet.get_size()), max(sprite_lata.get_size()))
+                    self.assertGreater(sprite_pet.get_width() * sprite_pet.get_height(),
+                                       sprite_lata.get_width() * sprite_lata.get_height())
 
     def test_gif_background_advances_frames_and_caches_scaled_frames(self):
         with tempfile.TemporaryDirectory() as diretorio:
